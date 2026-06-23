@@ -145,8 +145,8 @@ const RechargeCard = ({
               </div>
 
               {/* 统计数据 */}
-              <div className='grid grid-cols-3 gap-6 mt-4'>
-                {/* 当前余额 */}
+              <div className='grid grid-cols-2 sm:grid-cols-4 gap-6 mt-4'>
+                {/* 付费余额 */}
                 <div className='text-center'>
                   <div
                     className='text-base sm:text-2xl font-bold mb-2'
@@ -166,7 +166,32 @@ const RechargeCard = ({
                         fontSize: '12px',
                       }}
                     >
-                      {t('当前余额')}
+                      {t('付费余额')}
+                    </Text>
+                  </div>
+                </div>
+
+                {/* 积分余额 */}
+                <div className='text-center'>
+                  <div
+                    className='text-base sm:text-2xl font-bold mb-2'
+                    style={{ color: 'white' }}
+                  >
+                    {renderQuota(userState?.user?.bonus_quota || 0)}
+                  </div>
+                  <div className='flex items-center justify-center text-sm'>
+                    <Sparkles
+                      size={14}
+                      className='mr-1'
+                      style={{ color: 'rgba(255,255,255,0.8)' }}
+                    />
+                    <Text
+                      style={{
+                        color: 'rgba(255,255,255,0.8)',
+                        fontSize: '12px',
+                      }}
+                    >
+                      {t('积分余额')}
                     </Text>
                   </div>
                 </div>

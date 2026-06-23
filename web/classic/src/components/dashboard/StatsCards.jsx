@@ -20,8 +20,11 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Card, Avatar, Skeleton, Tag } from '@douyinfe/semi-ui';
 import { VChart } from '@visactor/react-vchart';
+import { registerBrowserEnv } from '@visactor/vchart';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+
+registerBrowserEnv();
 
 const StatsCards = ({
   groupedStatsData,
@@ -98,7 +101,7 @@ const StatsCards = ({
                       <div className='w-24 h-10'>
                         <VChart
                           spec={getTrendSpec(item.trendData, item.trendColor)}
-                          option={CHART_CONFIG}
+                          options={CHART_CONFIG}
                         />
                       </div>
                     )

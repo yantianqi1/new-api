@@ -48,6 +48,7 @@ export default function ModelRatioSettings(props) {
     ImageRatio: '',
     AudioRatio: '',
     AudioCompletionRatio: '',
+    BonusQuotaModels: '{}',
     ExposeRatioEnabled: false,
   });
   const refForm = useRef();
@@ -160,6 +161,32 @@ export default function ModelRatioSettings(props) {
                 },
               ]}
               onChange={(value) => setInputs({ ...inputs, ModelPrice: value })}
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col xs={24} sm={16}>
+            <Form.TextArea
+              label={t('积分抵扣模型')}
+              extraText={t(
+                '允许使用积分抵扣的模型配置，键为模型名称，值为 true',
+              )}
+              placeholder={t(
+                '为一个 JSON 文本，例如：{"gpt-4o-mini": true}',
+              )}
+              field={'BonusQuotaModels'}
+              autosize={{ minRows: 6, maxRows: 12 }}
+              trigger='blur'
+              stopValidateWithError
+              rules={[
+                {
+                  validator: (rule, value) => verifyJSON(value),
+                  message: '不是合法的 JSON 字符串',
+                },
+              ]}
+              onChange={(value) =>
+                setInputs({ ...inputs, BonusQuotaModels: value })
+              }
             />
           </Col>
         </Row>

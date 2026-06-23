@@ -181,6 +181,9 @@ export interface LogOtherData {
   is_system_prompt_overwritten?: boolean
   po?: string[]
   billing_source?: string
+  bonus_quota_model?: boolean
+  bonus_quota?: number
+  paid_quota?: number
   group?: string
   stream_status?: {
     status?: string
@@ -372,6 +375,7 @@ export interface UserInfo {
   username: string
   display_name?: string
   quota: number
+  bonus_quota?: number
   used_quota: number
   request_count: number
   group?: string

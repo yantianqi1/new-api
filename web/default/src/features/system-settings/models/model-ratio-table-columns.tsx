@@ -120,6 +120,29 @@ export function buildModelRatioColumns({
       meta: { label: t('Mode') },
     },
     {
+      accessorKey: 'bonusQuotaEnabled',
+      header: ({ column }) => (
+        <DataTableColumnHeader
+          column={column}
+          title={t('Points deduction')}
+        />
+      ),
+      cell: ({ row }) => (
+        <StatusBadge
+          label={
+            row.original.bonusQuotaEnabled ? t('Allowed') : t('Not allowed')
+          }
+          variant={row.original.bonusQuotaEnabled ? 'success' : 'neutral'}
+          copyable={false}
+          showDot={false}
+          className='-ml-1.5 px-0'
+        />
+      ),
+      filterFn: (row, id, value) =>
+        filterBySelectedValues(row.getValue(id), value),
+      meta: { label: t('Points deduction') },
+    },
+    {
       id: 'priceSummary',
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Price summary')} />

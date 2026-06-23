@@ -31,6 +31,7 @@ export const createModelPricingSchema = (t: (key: string) => string) =>
     imageRatio: z.string().optional(),
     audioRatio: z.string().optional(),
     audioCompletionRatio: z.string().optional(),
+    allowBonusQuota: z.boolean(),
   })
 
 export type ModelPricingFormValues = z.infer<
@@ -57,6 +58,7 @@ export type ModelRatioData = {
   imageRatio?: string
   audioRatio?: string
   audioCompletionRatio?: string
+  bonusQuotaEnabled?: boolean
   billingMode?: PricingMode
   billingExpr?: string
   requestRuleExpr?: string

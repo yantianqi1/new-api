@@ -40,6 +40,7 @@ const EMPTY_MODEL = {
   imagePrice: '',
   audioInputPrice: '',
   audioOutputPrice: '',
+  bonusQuotaEnabled: false,
   billingExpr: '',
   requestRuleExpr: '',
   rawRatios: {
@@ -131,6 +132,7 @@ const buildModelState = (name, sourceMaps) => {
       ...EMPTY_MODEL,
       name,
       billingMode: 'tiered_expr',
+      bonusQuotaEnabled: sourceMaps.BonusQuotaModels?.[name] === true,
       billingExpr,
       requestRuleExpr,
       rawRatios: { ...EMPTY_MODEL.rawRatios },
@@ -199,6 +201,7 @@ const buildModelState = (name, sourceMaps) => {
       toNumberOrNull(audioInputPrice) !== null && hasValue(audioCompletionRatio)
         ? formatNumber(Number(audioInputPrice) * Number(audioCompletionRatio))
         : '',
+    bonusQuotaEnabled: sourceMaps.BonusQuotaModels?.[name] === true,
     requestRuleExpr: '',
     rawRatios: {
       modelRatio,
@@ -648,6 +651,7 @@ export function useModelPricingEditorState({
       AudioCompletionRatio: parseOptionJSON(options.AudioCompletionRatio),
       ModelBillingMode: parseOptionJSON(options['billing_setting.billing_mode']),
       ModelBillingExpr: parseOptionJSON(options['billing_setting.billing_expr']),
+      BonusQuotaModels: parseOptionJSON(options.BonusQuotaModels),
     };
 
     const names = new Set([
@@ -663,6 +667,7 @@ export function useModelPricingEditorState({
       ...Object.keys(sourceMaps.AudioCompletionRatio),
       ...Object.keys(sourceMaps.ModelBillingMode),
       ...Object.keys(sourceMaps.ModelBillingExpr),
+      ...Object.keys(sourceMaps.BonusQuotaModels),
     ]);
 
     const nextModels = Array.from(names)
@@ -899,6 +904,14 @@ export function useModelPricingEditorState({
     }));
   };
 
+  const handleBonusQuotaEnabledChange = (checked) => {
+    if (!selectedModel) return;
+    upsertModel(selectedModel.name, (model) => ({
+      ...model,
+      bonusQuotaEnabled: checked,
+    }));
+  };
+
   const addModel = (modelName) => {
     const trimmedName = modelName.trim();
     if (!trimmedName) {
@@ -971,6 +984,7 @@ export function useModelPricingEditorState({
           imagePrice: selectedModel.imagePrice,
           audioInputPrice: selectedModel.audioInputPrice,
           audioOutputPrice: selectedModel.audioOutputPrice,
+          bonusQuotaEnabled: selectedModel.bonusQuotaEnabled,
           billingExpr: selectedModel.billingExpr || '',
           requestRuleExpr: selectedModel.requestRuleExpr || '',
         };
@@ -1020,6 +1034,32 @@ export function useModelPricingEditorState({
     return true;
   };
 
+  const applySelectedBonusQuota = (enabled) => {
+    if (selectedModelNames.length === 0) {
+      showError(t('请先勾选需要批量设置的模型'));
+      return false;
+    }
+
+    setModels((previous) =>
+      previous.map((model) =>
+        selectedModelNames.includes(model.name)
+          ? { ...model, bonusQuotaEnabled: enabled }
+          : model,
+      ),
+    );
+
+    showSuccess(
+      enabled
+        ? t('已允许 {{count}} 个模型使用积分抵扣', {
+            count: selectedModelNames.length,
+          })
+        : t('已关闭 {{count}} 个模型的积分抵扣', {
+            count: selectedModelNames.length,
+          }),
+    );
+    return true;
+  };
+
   const handleSubmit = async () => {
     setLoading(true);
     try {
@@ -1032,6 +1072,7 @@ export function useModelPricingEditorState({
         ImageRatio: {},
         AudioRatio: {},
         AudioCompletionRatio: {},
+        BonusQuotaModels: {},
       };
 
       const tieredOutput = {
@@ -1049,6 +1090,10 @@ export function useModelPricingEditorState({
             tieredOutput['billing_setting.billing_mode'][model.name] = 'tiered_expr';
             tieredOutput['billing_setting.billing_expr'][model.name] = finalBillingExpr;
           }
+        }
+
+        if (model.bonusQuotaEnabled) {
+          output.BonusQuotaModels[model.name] = true;
         }
 
         // Always serialize ratio/price values for all models (including
@@ -1125,9 +1170,11 @@ export function useModelPricingEditorState({
     handleBillingModeChange,
     handleBillingExprChange,
     handleRequestRuleExprChange,
+    handleBonusQuotaEnabledChange,
     handleSubmit,
     addModel,
     deleteModel,
     applySelectedModelPricing,
+    applySelectedBonusQuota,
   };
 }

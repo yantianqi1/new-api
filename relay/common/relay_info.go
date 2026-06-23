@@ -132,6 +132,14 @@ type RelayInfo struct {
 	// BillingSource indicates whether this request is billed from wallet quota or subscription.
 	// "" or "wallet" => wallet; "subscription" => subscription
 	BillingSource string
+	// BonusQuotaModel indicates whether this request model can consume promotional points.
+	BonusQuotaModel bool
+	// BonusQuotaPreConsumed / PaidQuotaPreConsumed record the wallet split at pre-consume time.
+	BonusQuotaPreConsumed int
+	PaidQuotaPreConsumed  int
+	// BonusQuotaConsumed / PaidQuotaConsumed record the final wallet split after settlement.
+	BonusQuotaConsumed int
+	PaidQuotaConsumed  int
 	// SubscriptionId is the user_subscriptions.id used when BillingSource == "subscription"
 	SubscriptionId int
 	// SubscriptionPreConsumed is the amount pre-consumed on subscription item (quota units or 1)

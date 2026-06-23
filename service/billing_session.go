@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/bytedance/gopkg/util/gopool"
@@ -46,6 +47,7 @@ func (s *BillingSession) Settle(actualQuota int) error {
 	}
 	delta := actualQuota - s.preConsumedQuota
 	if delta == 0 {
+		s.syncRelayInfo()
 		s.settled = true
 		return nil
 	}
@@ -74,6 +76,7 @@ func (s *BillingSession) Settle(actualQuota int) error {
 	if s.funding.Source() == BillingSourceSubscription {
 		s.relayInfo.SubscriptionPostDelta += int64(delta)
 	}
+	s.syncRelayInfo()
 	s.settled = true
 	return tokenErr
 }
@@ -237,6 +240,11 @@ func (s *BillingSession) reserveFunding(delta int) error {
 		}
 		funding.consumed += delta
 		return nil
+	case *BonusWalletFunding:
+		if err := funding.consume(delta, false); err != nil {
+			return types.NewError(err, types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
+		}
+		return nil
 	case *SubscriptionFunding:
 		if err := model.PostConsumeUserSubscriptionDelta(funding.subscriptionId, int64(delta)); err != nil {
 			return types.NewErrorWithStatusCode(
@@ -260,6 +268,10 @@ func (s *BillingSession) rollbackFundingReserve(delta int) {
 			common.SysLog("error rolling back wallet funding reserve: " + err.Error())
 		} else {
 			funding.consumed -= delta
+		}
+	case *BonusWalletFunding:
+		if err := funding.refund(delta); err != nil {
+			common.SysLog("error rolling back bonus wallet funding reserve: " + err.Error())
 		}
 	case *SubscriptionFunding:
 		if err := model.PostConsumeUserSubscriptionDelta(funding.subscriptionId, -int64(delta)); err != nil {
@@ -319,6 +331,11 @@ func (s *BillingSession) syncRelayInfo() {
 	info := s.relayInfo
 	info.FinalPreConsumedQuota = s.preConsumedQuota
 	info.BillingSource = s.funding.Source()
+	info.BonusQuotaModel = false
+	info.BonusQuotaPreConsumed = 0
+	info.PaidQuotaPreConsumed = 0
+	info.BonusQuotaConsumed = 0
+	info.PaidQuotaConsumed = 0
 
 	if sub, ok := s.funding.(*SubscriptionFunding); ok {
 		info.SubscriptionId = sub.subscriptionId
@@ -331,6 +348,17 @@ func (s *BillingSession) syncRelayInfo() {
 	} else {
 		info.SubscriptionId = 0
 		info.SubscriptionPreConsumed = 0
+		if wallet, ok := s.funding.(*WalletFunding); ok {
+			info.PaidQuotaPreConsumed = wallet.consumed
+			info.PaidQuotaConsumed = wallet.consumed
+		}
+		if wallet, ok := s.funding.(*BonusWalletFunding); ok {
+			info.BonusQuotaModel = true
+			info.BonusQuotaPreConsumed = wallet.bonusPreConsumed
+			info.PaidQuotaPreConsumed = wallet.paidPreConsumed
+			info.BonusQuotaConsumed = wallet.bonusConsumed
+			info.PaidQuotaConsumed = wallet.paidConsumed
+		}
 	}
 }
 
@@ -352,23 +380,39 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		if err != nil {
 			return nil, types.NewError(err, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
 		}
-		if userQuota <= 0 {
+		bonusQuota := 0
+		bonusQuotaModel := ratio_setting.IsBonusQuotaModel(relayInfo.OriginModelName)
+		if bonusQuotaModel {
+			bonusQuota, err = model.GetUserBonusQuota(relayInfo.UserId, false)
+			if err != nil {
+				return nil, types.NewError(err, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
+			}
+		}
+		availableQuota := userQuota
+		if bonusQuotaModel {
+			availableQuota += bonusQuota
+		}
+		if availableQuota <= 0 {
 			return nil, types.NewErrorWithStatusCode(
-				fmt.Errorf("用户额度不足, 剩余额度: %s", logger.FormatQuota(userQuota)),
+				fmt.Errorf("用户额度不足, 剩余额度: %s", logger.FormatQuota(availableQuota)),
 				types.ErrorCodeInsufficientUserQuota, http.StatusForbidden,
 				types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 		}
-		if userQuota-preConsumedQuota < 0 {
+		if availableQuota-preConsumedQuota < 0 {
 			return nil, types.NewErrorWithStatusCode(
-				fmt.Errorf("预扣费额度失败, 用户剩余额度: %s, 需要预扣费额度: %s", logger.FormatQuota(userQuota), logger.FormatQuota(preConsumedQuota)),
+				fmt.Errorf("预扣费额度失败, 用户剩余额度: %s, 需要预扣费额度: %s", logger.FormatQuota(availableQuota), logger.FormatQuota(preConsumedQuota)),
 				types.ErrorCodeInsufficientUserQuota, http.StatusForbidden,
 				types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 		}
 		relayInfo.UserQuota = userQuota
 
+		var funding FundingSource = &WalletFunding{userId: relayInfo.UserId}
+		if bonusQuotaModel {
+			funding = &BonusWalletFunding{userId: relayInfo.UserId}
+		}
 		session := &BillingSession{
 			relayInfo: relayInfo,
-			funding:   &WalletFunding{userId: relayInfo.UserId},
+			funding:   funding,
 		}
 		if apiErr := session.preConsume(c, preConsumedQuota); apiErr != nil {
 			return nil, apiErr

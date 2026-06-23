@@ -126,10 +126,12 @@ export default function ModelPricingEditor({
     handleBillingModeChange,
     handleBillingExprChange,
     handleRequestRuleExprChange,
+    handleBonusQuotaEnabledChange,
     handleSubmit,
     addModel,
     deleteModel,
     applySelectedModelPricing,
+    applySelectedBonusQuota,
   } = useModelPricingEditorState({
     options,
     refresh,
@@ -205,6 +207,16 @@ export default function ModelPricingEditor({
         ),
       },
       {
+        title: t('积分抵扣'),
+        dataIndex: 'bonusQuotaEnabled',
+        key: 'bonusQuotaEnabled',
+        render: (_, record) => (
+          <Tag color={record.bonusQuotaEnabled ? 'green' : 'grey'}>
+            {record.bonusQuotaEnabled ? t('允许') : t('不允许')}
+          </Tag>
+        ),
+      },
+      {
         title: t('价格摘要'),
         dataIndex: 'summary',
         key: 'summary',
@@ -231,6 +243,7 @@ export default function ModelPricingEditor({
       allowDeleteModel,
       deleteModel,
       getExprModeLabel,
+      selectedModel?.bonusQuotaEnabled,
       selectedModelName,
       selectedModelNames,
       setSelectedModelName,
@@ -279,6 +292,20 @@ export default function ModelPricingEditor({
           >
             {t('批量应用当前模型价格')}
             {selectedModelNames.length > 0 ? ` (${selectedModelNames.length})` : ''}
+          </Button>
+          <Button
+            disabled={selectedModelNames.length === 0}
+            onClick={() => applySelectedBonusQuota(true)}
+            style={isMobile ? { width: '100%' } : undefined}
+          >
+            {t('批量允许积分抵扣')}
+          </Button>
+          <Button
+            disabled={selectedModelNames.length === 0}
+            onClick={() => applySelectedBonusQuota(false)}
+            style={isMobile ? { width: '100%' } : undefined}
+          >
+            {t('批量关闭积分抵扣')}
           </Button>
           <Input
             prefix={<IconSearch />}
@@ -422,6 +449,29 @@ export default function ModelPricingEditor({
                     )}
                   </div>
                 </div>
+
+                <Card
+                  bodyStyle={{ padding: 16 }}
+                  style={{
+                    marginBottom: 16,
+                    background: 'var(--semi-color-fill-0)',
+                  }}
+                >
+                  <div className='flex items-center justify-between gap-3'>
+                    <div>
+                      <div className='font-medium text-gray-700'>
+                        {t('允许积分抵扣')}
+                      </div>
+                      <div className='text-xs text-gray-500 mt-1'>
+                        {t('开启后先扣积分，积分不足时扣付费额度。')}
+                      </div>
+                    </div>
+                    <Switch
+                      checked={selectedModel.bonusQuotaEnabled}
+                      onChange={handleBonusQuotaEnabledChange}
+                    />
+                  </div>
+                </Card>
 
                 {selectedWarnings.length > 0 ? (
                   <Card

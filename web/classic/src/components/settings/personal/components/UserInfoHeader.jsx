@@ -32,7 +32,7 @@ import {
   renderQuota,
   stringToColor,
 } from '../../../../helpers';
-import { Coins, BarChart2, Users } from 'lucide-react';
+import { Coins, BarChart2, Sparkles, Users } from 'lucide-react';
 
 const UserInfoHeader = ({ t, userState }) => {
   const getUsername = () => {
@@ -116,10 +116,10 @@ const UserInfoHeader = ({ t, userState }) => {
         </div>
       }
     >
-      {/* 当前余额和桌面版统计信息 */}
+      {/* 付费余额和桌面版统计信息 */}
       <div className='flex items-start justify-between gap-6'>
-        {/* 当前余额显示 */}
-        <Badge count={t('当前余额')} position='rightTop' type='danger'>
+        {/* 付费余额显示 */}
+        <Badge count={t('付费余额')} position='rightTop' type='danger'>
           <div className='text-2xl sm:text-3xl md:text-4xl font-bold tracking-wide'>
             {renderQuota(userState?.user?.quota)}
           </div>
@@ -133,6 +133,16 @@ const UserInfoHeader = ({ t, userState }) => {
             bodyStyle={{ padding: '12px 16px' }}
           >
             <div className='flex items-center gap-4'>
+              <div className='flex items-center gap-2'>
+                <Sparkles size={16} />
+                <Typography.Text size='small' type='tertiary'>
+                  {t('积分余额')}
+                </Typography.Text>
+                <Typography.Text size='small' type='tertiary' strong>
+                  {renderQuota(userState?.user?.bonus_quota || 0)}
+                </Typography.Text>
+              </div>
+              <Divider layout='vertical' />
               <div className='flex items-center gap-2'>
                 <Coins size={16} />
                 <Typography.Text size='small' type='tertiary'>
@@ -175,6 +185,18 @@ const UserInfoHeader = ({ t, userState }) => {
           bodyStyle={{ padding: '12px 16px' }}
         >
           <div className='space-y-3'>
+            <div className='flex items-center justify-between'>
+              <div className='flex items-center gap-2'>
+                <Sparkles size={16} />
+                <Typography.Text size='small' type='tertiary'>
+                  {t('积分余额')}
+                </Typography.Text>
+              </div>
+              <Typography.Text size='small' type='tertiary' strong>
+                {renderQuota(userState?.user?.bonus_quota || 0)}
+              </Typography.Text>
+            </div>
+            <Divider margin='8px' />
             <div className='flex items-center justify-between'>
               <div className='flex items-center gap-2'>
                 <Coins size={16} />

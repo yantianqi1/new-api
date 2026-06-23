@@ -40,28 +40,6 @@ import {
 } from '@douyinfe/semi-icons';
 import { Link } from 'react-router-dom';
 import NoticeModal from '../../components/layout/NoticeModal';
-import {
-  Moonshot,
-  OpenAI,
-  XAI,
-  Zhipu,
-  Volcengine,
-  Cohere,
-  Claude,
-  Gemini,
-  Suno,
-  Minimax,
-  Wenxin,
-  Spark,
-  Qingyan,
-  DeepSeek,
-  Qwen,
-  Midjourney as MjProxyIcon,
-  Grok,
-  AzureAI,
-  Hunyuan,
-  Xinference,
-} from '@lobehub/icons';
 
 const { Text } = Typography;
 
@@ -79,60 +57,6 @@ const Home = () => {
   const endpointItems = API_ENDPOINTS.map((e) => ({ value: e }));
   const [endpointIndex, setEndpointIndex] = useState(0);
   const isChinese = i18n.language.startsWith('zh');
-  const providerIcons = [
-    <Moonshot size={40} />,
-    <OpenAI size={40} />,
-    <XAI size={40} />,
-    <Zhipu.Color size={40} />,
-    <Volcengine.Color size={40} />,
-    <Cohere.Color size={40} />,
-    <Claude.Color size={40} />,
-    <Gemini.Color size={40} />,
-    <Suno size={40} />,
-    <Minimax.Color size={40} />,
-    <Wenxin.Color size={40} />,
-    <Spark.Color size={40} />,
-    <Qingyan.Color size={40} />,
-    <DeepSeek.Color size={40} />,
-    <Qwen.Color size={40} />,
-    <MjProxyIcon size={40} />,
-    <Grok size={40} />,
-    <AzureAI.Color size={40} />,
-    <Hunyuan.Color size={40} />,
-    <Xinference.Color size={40} />,
-  ];
-  const featureCards = [
-    {
-      title: t('统一转发'),
-      description: t('一个入口接入不同模型供应商，客户端配置更简单。'),
-    },
-    {
-      title: t('兼容多协议'),
-      description: t('支持 OpenAI、Claude、Gemini 等常见接口格式。'),
-    },
-    {
-      title: t('密钥管理'),
-      description: t('按用户和令牌管理权限，便于团队协作与隔离。'),
-    },
-    {
-      title: t('用量统计'),
-      description: t('集中查看调用量、额度和消费，运营更清楚。'),
-    },
-  ];
-  const accessSteps = [
-    {
-      title: t('获取密钥'),
-      description: t('登录控制台创建令牌，按需配置额度和权限。'),
-    },
-    {
-      title: t('替换 Base URL'),
-      description: t('把客户端的接口基址改成当前站点地址。'),
-    },
-    {
-      title: t('选择模型'),
-      description: t('继续使用熟悉的 SDK 和模型名称发起请求。'),
-    },
-  ];
   const endpointRows = [
     ['Chat Completions', '/v1/chat/completions'],
     ['Models', '/v1/models'],
@@ -355,64 +279,6 @@ const Home = () => {
               </div>
             </div>
           </div>
-
-          <section className='classic-home-section'>
-            <div className='classic-home-shell'>
-              <div className='classic-home-section-heading'>
-                <Text>{t('为什么选择这个中转服务')}</Text>
-                <h2>{t('把模型接入、密钥和用量放到一个清晰的工作台')}</h2>
-              </div>
-              <div className='classic-home-feature-grid'>
-                {featureCards.map((item) => (
-                  <article
-                    className='classic-home-feature-card'
-                    key={item.title}
-                  >
-                    <h3>{item.title}</h3>
-                    <p>{item.description}</p>
-                  </article>
-                ))}
-              </div>
-            </div>
-          </section>
-
-          <section className='classic-home-section classic-home-section-muted'>
-            <div className='classic-home-shell'>
-              <div className='classic-home-section-heading'>
-                <Text>{t('三步完成接入')}</Text>
-                <h2>{t('保留熟悉的 SDK，只替换接入配置')}</h2>
-              </div>
-              <div className='classic-home-step-grid'>
-                {accessSteps.map((step, index) => (
-                  <article className='classic-home-step-card' key={step.title}>
-                    <span>{String(index + 1).padStart(2, '0')}</span>
-                    <h3>{step.title}</h3>
-                    <p>{step.description}</p>
-                  </article>
-                ))}
-              </div>
-            </div>
-          </section>
-
-          <section className='classic-home-section'>
-            <div className='classic-home-shell'>
-              <div className='classic-home-section-heading classic-home-provider-heading'>
-                <Text>{t('覆盖主流模型供应商')}</Text>
-                <h2>{t('一个入口连接常用模型能力')}</h2>
-                <p>{t('按需配置渠道和模型，让业务侧保持稳定的调用方式。')}</p>
-              </div>
-              <div className='classic-home-provider-grid'>
-                {providerIcons.map((icon, index) => (
-                  <div className='classic-home-provider-item' key={index}>
-                    {icon}
-                  </div>
-                ))}
-                <div className='classic-home-provider-item classic-home-provider-more'>
-                  <Typography.Text>30+</Typography.Text>
-                </div>
-              </div>
-            </div>
-          </section>
         </div>
       ) : (
         <div className='classic-page-fill overflow-x-hidden w-full'>

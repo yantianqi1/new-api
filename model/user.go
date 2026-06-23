@@ -38,6 +38,7 @@ type User struct {
 	VerificationCode string         `json:"verification_code" gorm:"-:all"`                         // this field is only for Email verification, don't save it to database!
 	AccessToken      *string        `json:"-" gorm:"type:char(32);column:access_token;uniqueIndex"` // this token is for system management
 	Quota            int            `json:"quota" gorm:"type:int;default:0"`
+	BonusQuota       int            `json:"bonus_quota" gorm:"type:int;default:0;column:bonus_quota"`
 	UsedQuota        int            `json:"used_quota" gorm:"type:int;default:0;column:used_quota"` // used quota
 	RequestCount     int            `json:"request_count" gorm:"type:int;default:0;"`               // request number
 	Group            string         `json:"group" gorm:"type:varchar(64);default:'default'"`
@@ -57,13 +58,14 @@ type User struct {
 
 func (user *User) ToBaseUser() *UserBase {
 	cache := &UserBase{
-		Id:       user.Id,
-		Group:    user.Group,
-		Quota:    user.Quota,
-		Status:   user.Status,
-		Username: user.Username,
-		Setting:  user.Setting,
-		Email:    user.Email,
+		Id:         user.Id,
+		Group:      user.Group,
+		Quota:      user.Quota,
+		BonusQuota: user.BonusQuota,
+		Status:     user.Status,
+		Username:   user.Username,
+		Setting:    user.Setting,
+		Email:      user.Email,
 	}
 	return cache
 }
@@ -816,6 +818,33 @@ func GetUserQuota(id int, fromDB bool) (quota int, err error) {
 	return quota, nil
 }
 
+func GetUserBonusQuota(id int, fromDB bool) (quota int, err error) {
+	defer func() {
+		// Update Redis cache asynchronously on successful DB read
+		if shouldUpdateRedis(fromDB, err) {
+			gopool.Go(func() {
+				if err := updateUserBonusQuotaCache(id, quota); err != nil {
+					common.SysLog("failed to update user bonus quota cache: " + err.Error())
+				}
+			})
+		}
+	}()
+	if !fromDB && common.RedisEnabled {
+		quota, err := getUserBonusQuotaCache(id)
+		if err == nil {
+			return quota, nil
+		}
+		// Don't return error - fall through to DB
+	}
+	fromDB = true
+	err = DB.Model(&User{}).Where("id = ?", id).Select("bonus_quota").Find(&quota).Error
+	if err != nil {
+		return 0, err
+	}
+
+	return quota, nil
+}
+
 func GetUserUsedQuota(id int) (quota int, err error) {
 	err = DB.Model(&User{}).Where("id = ?", id).Select("used_quota").Find(&quota).Error
 	return quota, err
@@ -932,6 +961,48 @@ func DecreaseUserQuota(id int, quota int, db bool) (err error) {
 		return nil
 	}
 	return decreaseUserQuota(id, quota)
+}
+
+func IncreaseUserBonusQuota(id int, quota int, db bool) (err error) {
+	if quota < 0 {
+		return errors.New("quota 不能为负数！")
+	}
+	gopool.Go(func() {
+		err := cacheIncrUserBonusQuota(id, int64(quota))
+		if err != nil {
+			common.SysLog("failed to increase user bonus quota: " + err.Error())
+		}
+	})
+	return increaseUserBonusQuota(id, quota)
+}
+
+func increaseUserBonusQuota(id int, quota int) (err error) {
+	err = DB.Model(&User{}).Where("id = ?", id).Update("bonus_quota", gorm.Expr("bonus_quota + ?", quota)).Error
+	if err != nil {
+		return err
+	}
+	return err
+}
+
+func DecreaseUserBonusQuota(id int, quota int, db bool) (err error) {
+	if quota < 0 {
+		return errors.New("quota 不能为负数！")
+	}
+	gopool.Go(func() {
+		err := cacheDecrUserBonusQuota(id, int64(quota))
+		if err != nil {
+			common.SysLog("failed to decrease user bonus quota: " + err.Error())
+		}
+	})
+	return decreaseUserBonusQuota(id, quota)
+}
+
+func decreaseUserBonusQuota(id int, quota int) (err error) {
+	err = DB.Model(&User{}).Where("id = ?", id).Update("bonus_quota", gorm.Expr("bonus_quota - ?", quota)).Error
+	if err != nil {
+		return err
+	}
+	return err
 }
 
 func decreaseUserQuota(id int, quota int) (err error) {

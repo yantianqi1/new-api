@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/QuantumNous/new-api/model"
@@ -61,6 +62,107 @@ func (w *WalletFunding) Refund() error {
 	// IncreaseUserQuota 是 quota += N 的非幂等操作，不能重试，否则会多退额度。
 	// 订阅的 RefundSubscriptionPreConsume 有 requestId 幂等保护所以可以重试。
 	return model.IncreaseUserQuota(w.userId, w.consumed, false)
+}
+
+// ---------------------------------------------------------------------------
+// BonusWalletFunding — 积分优先的钱包资金来源实现
+// ---------------------------------------------------------------------------
+
+type BonusWalletFunding struct {
+	userId           int
+	bonusConsumed    int
+	paidConsumed     int
+	bonusPreConsumed int
+	paidPreConsumed  int
+}
+
+func (w *BonusWalletFunding) Source() string { return BillingSourceWallet }
+
+func (w *BonusWalletFunding) PreConsume(amount int) error {
+	return w.consume(amount, true)
+}
+
+func (w *BonusWalletFunding) Settle(delta int) error {
+	if delta == 0 {
+		return nil
+	}
+	if delta > 0 {
+		return w.consume(delta, false)
+	}
+	return w.refund(-delta)
+}
+
+func (w *BonusWalletFunding) Refund() error {
+	return w.refund(w.bonusConsumed + w.paidConsumed)
+}
+
+func (w *BonusWalletFunding) consume(amount int, recordPreConsume bool) error {
+	if amount <= 0 {
+		return nil
+	}
+	bonusQuota, err := model.GetUserBonusQuota(w.userId, false)
+	if err != nil {
+		return err
+	}
+	paidQuota, err := model.GetUserQuota(w.userId, false)
+	if err != nil {
+		return err
+	}
+	if bonusQuota+paidQuota < amount {
+		return fmt.Errorf("用户额度不足, 积分额度: %d, 付费额度: %d, 需要额度: %d", bonusQuota, paidQuota, amount)
+	}
+
+	bonusAmount := min(amount, bonusQuota)
+	paidAmount := amount - bonusAmount
+
+	if bonusAmount > 0 {
+		if err := model.DecreaseUserBonusQuota(w.userId, bonusAmount, false); err != nil {
+			return err
+		}
+	}
+	if paidAmount > 0 {
+		if err := model.DecreaseUserQuota(w.userId, paidAmount, false); err != nil {
+			if bonusAmount > 0 {
+				_ = model.IncreaseUserBonusQuota(w.userId, bonusAmount, false)
+			}
+			return err
+		}
+	}
+
+	w.bonusConsumed += bonusAmount
+	w.paidConsumed += paidAmount
+	if recordPreConsume {
+		w.bonusPreConsumed += bonusAmount
+		w.paidPreConsumed += paidAmount
+	}
+	return nil
+}
+
+func (w *BonusWalletFunding) refund(amount int) error {
+	if amount <= 0 {
+		return nil
+	}
+	paidAmount := min(amount, w.paidConsumed)
+	if paidAmount > 0 {
+		if err := model.IncreaseUserQuota(w.userId, paidAmount, false); err != nil {
+			return err
+		}
+		w.paidConsumed -= paidAmount
+		amount -= paidAmount
+	}
+
+	bonusAmount := min(amount, w.bonusConsumed)
+	if bonusAmount > 0 {
+		if err := model.IncreaseUserBonusQuota(w.userId, bonusAmount, false); err != nil {
+			return err
+		}
+		w.bonusConsumed -= bonusAmount
+		amount -= bonusAmount
+	}
+	if amount > 0 {
+		return fmt.Errorf("refund amount exceeds consumed quota: %d", amount)
+	}
+	return nil
 }
 
 // ---------------------------------------------------------------------------

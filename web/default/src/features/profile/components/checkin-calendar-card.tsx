@@ -142,7 +142,7 @@ export function CheckinCalendarCard({
         const res = await performCheckin(token)
         if (res.success && res.data) {
           toast.success(
-            `${t('Check-in successful! Received')} ${formatQuotaWithCurrency(res.data.quota_awarded)}`
+            `${t('Check-in successful! Received points')} ${formatQuotaWithCurrency(res.data.quota_awarded)}`
           )
           refetch()
           setTurnstileModalVisible(false)
@@ -308,7 +308,7 @@ export function CheckinCalendarCard({
                 <p className='text-muted-foreground mt-1 line-clamp-2 text-xs sm:text-sm'>
                   {checkedToday && todayAward !== undefined
                     ? `${t('Today')} +${formatQuotaWithCurrency(todayAward)}`
-                    : t('Check in daily to receive random quota rewards')}
+                    : t('Check in daily to receive random points rewards')}
                 </p>
               </div>
             </button>
@@ -357,7 +357,7 @@ export function CheckinCalendarCard({
                   )}
                 </div>
                 <div className='text-muted-foreground mt-0.5 text-[10px] font-medium sm:mt-1 sm:text-xs'>
-                  {t('Total earned')}
+                  {t('Total points earned')}
                 </div>
               </div>
             </div>
@@ -463,10 +463,10 @@ export function CheckinCalendarCard({
                 <div className='bg-muted/30 text-muted-foreground rounded-lg border p-3 text-xs'>
                   <ul className='list-disc space-y-1 pl-5'>
                     <li>
-                      {t('Check in daily to receive random quota rewards')}
+                      {t('Check in daily to receive random points rewards')}
                     </li>
                     <li>
-                      {t('Rewards will be added directly to your balance')}
+                      {t('Rewards will be added directly to your points balance')}
                     </li>
                     <li>{t('Do not repeat check-in; only once per day')}</li>
                   </ul>
