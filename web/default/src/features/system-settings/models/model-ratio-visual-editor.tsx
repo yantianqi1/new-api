@@ -71,6 +71,7 @@ type ModelRatioVisualEditorProps = {
   savedImageRatio: string
   savedAudioRatio: string
   savedAudioCompletionRatio: string
+  savedBonusQuotaModels: string
   savedBillingMode: string
   savedBillingExpr: string
   modelPrice: string
@@ -81,6 +82,7 @@ type ModelRatioVisualEditorProps = {
   imageRatio: string
   audioRatio: string
   audioCompletionRatio: string
+  bonusQuotaModels: string
   billingMode: string
   billingExpr: string
   onChange: (field: string, value: string) => void
@@ -107,6 +109,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
     savedImageRatio,
     savedAudioRatio,
     savedAudioCompletionRatio,
+    savedBonusQuotaModels,
     savedBillingMode,
     savedBillingExpr,
     modelPrice,
@@ -117,6 +120,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
     imageRatio,
     audioRatio,
     audioCompletionRatio,
+    bonusQuotaModels,
     billingMode,
     billingExpr,
     onChange,
@@ -188,6 +192,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       imageRatio: savedImageRatio,
       audioRatio: savedAudioRatio,
       audioCompletionRatio: savedAudioCompletionRatio,
+      bonusQuotaModels: savedBonusQuotaModels,
       billingMode: savedBillingMode,
       billingExpr: savedBillingExpr,
     })
@@ -200,6 +205,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       imageRatio,
       audioRatio,
       audioCompletionRatio,
+      bonusQuotaModels,
       billingMode,
       billingExpr,
     })
@@ -236,6 +242,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
     savedImageRatio,
     savedAudioRatio,
     savedAudioCompletionRatio,
+    savedBonusQuotaModels,
     savedBillingMode,
     savedBillingExpr,
     modelPrice,
@@ -246,6 +253,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
     imageRatio,
     audioRatio,
     audioCompletionRatio,
+    bonusQuotaModels,
     billingMode,
     billingExpr,
   ])
@@ -270,6 +278,17 @@ const ModelRatioVisualEditorComponent = forwardRef<
       ),
     [models]
   )
+  const bonusQuotaCounts = useMemo(
+    () =>
+      models.reduce(
+        (acc, model) => {
+          acc[model.bonusQuotaEnabled ? 'true' : 'false'] += 1
+          return acc
+        },
+        { true: 0, false: 0 } as Record<'true' | 'false', number>
+      ),
+    [models]
+  )
 
   const handleEdit = useCallback(
     (model: ModelRow) => {
@@ -284,6 +303,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
         imageRatio: editableModel.imageRatio,
         audioRatio: editableModel.audioRatio,
         audioCompletionRatio: editableModel.audioCompletionRatio,
+        bonusQuotaEnabled: editableModel.bonusQuotaEnabled,
         billingMode:
           editableModel.billingMode === 'tiered_expr'
             ? 'tiered_expr'
@@ -362,6 +382,10 @@ const ModelRatioVisualEditorComponent = forwardRef<
         billingExpr,
         { fallback: {}, silent: true }
       )
+      const bonusQuotaMap = safeJsonParse<Record<string, boolean>>(
+        bonusQuotaModels,
+        { fallback: {}, silent: true }
+      )
 
       delete priceMap[name]
       delete ratioMap[name]
@@ -373,6 +397,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       delete audioCompletionMap[name]
       delete billingModeMap[name]
       delete billingExprMap[name]
+      delete bonusQuotaMap[name]
 
       onChange('ModelPrice', JSON.stringify(priceMap, null, 2))
       onChange('ModelRatio', JSON.stringify(ratioMap, null, 2))
@@ -393,6 +418,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
         'billing_setting.billing_expr',
         JSON.stringify(billingExprMap, null, 2)
       )
+      onChange('BonusQuotaModels', JSON.stringify(bonusQuotaMap, null, 2))
 
       if (editData?.name === name) {
         setEditData(null)
@@ -411,6 +437,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       audioCompletionRatio,
       billingMode,
       billingExpr,
+      bonusQuotaModels,
       onChange,
       editData,
     ]
@@ -491,6 +518,10 @@ const ModelRatioVisualEditorComponent = forwardRef<
         billingExpr,
         { fallback: {}, silent: true }
       )
+      const bonusQuotaMap = safeJsonParse<Record<string, boolean>>(
+        bonusQuotaModels,
+        { fallback: {}, silent: true }
+      )
 
       const setIfPresent = (
         target: Record<string, number>,
@@ -513,6 +544,11 @@ const ModelRatioVisualEditorComponent = forwardRef<
         delete audioCompletionMap[name]
         delete billingModeMap[name]
         delete billingExprMap[name]
+        delete bonusQuotaMap[name]
+
+        if (data.bonusQuotaEnabled) {
+          bonusQuotaMap[name] = true
+        }
 
         if (data.billingMode === 'tiered_expr') {
           const combined = combineBillingExpr(
@@ -567,6 +603,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
         'billing_setting.billing_expr',
         JSON.stringify(billingExprMap, null, 2)
       )
+      onChange('BonusQuotaModels', JSON.stringify(bonusQuotaMap, null, 2))
     },
     [
       modelPrice,
@@ -579,6 +616,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       audioCompletionRatio,
       billingMode,
       billingExpr,
+      bonusQuotaModels,
       onChange,
     ]
   )
@@ -607,6 +645,45 @@ const ModelRatioVisualEditorComponent = forwardRef<
       })
     )
   }, [editData, persistPricingData, t, table])
+
+  const handleBatchBonusQuota = useCallback(
+    (enabled: boolean) => {
+      const targetNames = table
+        .getFilteredSelectedRowModel()
+        .rows.map((row) => row.original.name)
+
+      if (targetNames.length === 0) {
+        toast.error(t('Select at least one target model'))
+        return
+      }
+
+      const bonusQuotaMap = safeJsonParse<Record<string, boolean>>(
+        bonusQuotaModels,
+        { fallback: {}, silent: true }
+      )
+
+      targetNames.forEach((name) => {
+        if (enabled) {
+          bonusQuotaMap[name] = true
+        } else {
+          delete bonusQuotaMap[name]
+        }
+      })
+
+      onChange('BonusQuotaModels', JSON.stringify(bonusQuotaMap, null, 2))
+      table.resetRowSelection()
+      toast.success(
+        enabled
+          ? t('Enabled points deduction for {{count}} models', {
+              count: targetNames.length,
+            })
+          : t('Disabled points deduction for {{count}} models', {
+              count: targetNames.length,
+            })
+      )
+    },
+    [bonusQuotaModels, onChange, t, table]
+  )
 
   useImperativeHandle(
     ref,
@@ -654,6 +731,22 @@ const ModelRatioVisualEditorComponent = forwardRef<
                   },
                 ],
               },
+              {
+                columnId: 'bonusQuotaEnabled',
+                title: t('Points deduction'),
+                options: [
+                  {
+                    label: t('Allowed'),
+                    value: 'true',
+                    count: bonusQuotaCounts.true,
+                  },
+                  {
+                    label: t('Not allowed'),
+                    value: 'false',
+                    count: bonusQuotaCounts.false,
+                  },
+                ],
+              },
             ]}
             preActions={
               <Button onClick={handleAdd}>
@@ -674,7 +767,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
               table={table}
               containerClassName='min-h-0 flex-1 rounded-md'
               tableContainerClassName='h-full'
-              tableClassName='min-w-[852px] table-fixed'
+              tableClassName='min-w-[980px] table-fixed'
               tableHeaderClassName='[&_tr]:border-b-0'
               splitHeaderScrollClassName='h-full'
               bodyContainerClassName='[scrollbar-gutter:stable]'
@@ -690,6 +783,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
                 <colgroup>
                   <col className='w-9' />
                   <col className='w-[300px]' />
+                  <col className='w-[120px]' />
                   <col className='w-[120px]' />
                   <col className='w-[300px]' />
                   <col className='w-24' />
@@ -752,6 +846,16 @@ const ModelRatioVisualEditorComponent = forwardRef<
       </div>
 
       <DataTableBulkActions table={table} entityName={t('model')}>
+        <Button size='sm' onClick={() => handleBatchBonusQuota(true)}>
+          {t('Allow points')}
+        </Button>
+        <Button
+          size='sm'
+          variant='outline'
+          onClick={() => handleBatchBonusQuota(false)}
+        >
+          {t('Disallow points')}
+        </Button>
         <Button size='sm' disabled={!editData} onClick={handleBatchCopy}>
           <Copy data-icon='inline-start' />
           {editData
@@ -787,6 +891,7 @@ export const ModelRatioVisualEditor = memo(
       prevProps.imageRatio === nextProps.imageRatio &&
       prevProps.audioRatio === nextProps.audioRatio &&
       prevProps.audioCompletionRatio === nextProps.audioCompletionRatio &&
+      prevProps.bonusQuotaModels === nextProps.bonusQuotaModels &&
       prevProps.billingMode === nextProps.billingMode &&
       prevProps.billingExpr === nextProps.billingExpr &&
       prevProps.onChange === nextProps.onChange &&

@@ -105,7 +105,7 @@ export default function SettingsCheckin(props) {
               type='tertiary'
               style={{ marginBottom: 16, display: 'block' }}
             >
-              {t('签到功能允许用户每日签到获取随机额度奖励')}
+              {t('签到功能允许用户每日签到获取随机积分奖励')}
             </Typography.Text>
             <Row gutter={16}>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
@@ -121,8 +121,8 @@ export default function SettingsCheckin(props) {
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
                 <Form.InputNumber
                   field={'checkin_setting.min_quota'}
-                  label={t('签到最小额度')}
-                  placeholder={t('签到奖励的最小额度')}
+                  label={t('签到最小积分')}
+                  placeholder={t('签到奖励的最小积分')}
                   onChange={handleFieldChange('checkin_setting.min_quota')}
                   min={0}
                   disabled={!inputs['checkin_setting.enabled']}
@@ -131,8 +131,8 @@ export default function SettingsCheckin(props) {
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
                 <Form.InputNumber
                   field={'checkin_setting.max_quota'}
-                  label={t('签到最大额度')}
-                  placeholder={t('签到奖励的最大额度')}
+                  label={t('签到最大积分')}
+                  placeholder={t('签到奖励的最大积分')}
                   onChange={handleFieldChange('checkin_setting.max_quota')}
                   min={0}
                   disabled={!inputs['checkin_setting.enabled']}

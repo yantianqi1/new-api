@@ -127,6 +127,17 @@ func appendBillingInfo(relayInfo *relaycommon.RelayInfo, other map[string]interf
 	if relayInfo.UserSetting.BillingPreference != "" {
 		other["billing_preference"] = relayInfo.UserSetting.BillingPreference
 	}
+	if relayInfo.BillingSource != "subscription" {
+		if relayInfo.BonusQuotaModel {
+			other["bonus_quota_model"] = true
+		}
+		if relayInfo.BonusQuotaConsumed > 0 {
+			other["bonus_quota"] = relayInfo.BonusQuotaConsumed
+		}
+		if relayInfo.PaidQuotaConsumed > 0 {
+			other["paid_quota"] = relayInfo.PaidQuotaConsumed
+		}
+	}
 	if relayInfo.BillingSource == "subscription" {
 		if relayInfo.SubscriptionId != 0 {
 			other["subscription_id"] = relayInfo.SubscriptionId

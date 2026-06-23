@@ -120,6 +120,42 @@ Do NOT directly import or call `encoding/json` in business code. `json.RawMessag
 - In React components, use `useTranslation()` and call `t('English key')` for user-facing text.
 - Follow `web/default/AGENTS.md` for detailed frontend conventions, including TypeScript, component structure, styling, accessibility, testing, and build checks.
 
+### Deployment: 154.40.43.47
+
+- Target server: `154.40.43.47` (`~/.ssh/config` alias `fxy-us-44-70m`, user `root`, port `22`, key `~/.ssh/id_ed25519`).
+- Repository source: use the user's fork at `https://github.com/yantianqi1/new-api.git`; build from the local working tree in `/Users/yantianqi/Documents/new-api`.
+- Deployment directory on the server: `/opt/new-api`.
+- Runtime stack on the server: Docker Compose with `new-api`, `mysql:8.4`, and `redis:7-alpine`. The database must be MySQL, not PostgreSQL.
+- Server secrets live only in `/opt/new-api/.env`; do not commit or print MySQL, Redis, or session secrets.
+- Build the application image locally for the server architecture, then load it onto the server over SSH:
+
+```bash
+short_sha=$(git rev-parse --short HEAD)
+build_date=$(date +%Y%m%d%H%M)
+image="new-api:yantianqi1-${short_sha}-${build_date}"
+docker buildx build --platform linux/amd64 -t "$image" --load .
+docker save "$image" | gzip -1 | ssh fxy-us-44-70m 'gunzip | docker load'
+```
+
+- If the server cannot pull Docker Hub images, pull base images locally and transfer them too:
+
+```bash
+docker pull --platform linux/amd64 mysql:8.4
+docker pull --platform linux/amd64 redis:7-alpine
+docker save --platform linux/amd64 -o /tmp/mysql-linux-amd64.tar mysql:8.4
+docker save --platform linux/amd64 -o /tmp/redis-linux-amd64.tar redis:7-alpine
+gzip -1 -c /tmp/redis-linux-amd64.tar | ssh fxy-us-44-70m 'gunzip | docker load'
+gzip -1 -c /tmp/mysql-linux-amd64.tar | ssh fxy-us-44-70m 'gunzip | docker load'
+```
+
+- Update `/opt/new-api/.env` so `NEW_API_IMAGE` points to the image tag being deployed, then run:
+
+```bash
+ssh fxy-us-44-70m 'cd /opt/new-api && docker compose up -d'
+ssh fxy-us-44-70m 'curl -fsS http://127.0.0.1:3000/api/status'
+curl -fsS http://154.40.43.47:3000/api/status
+```
+
 ### Project Governance
 
 **Protected project information:** The following project-related information is strictly protected and MUST NOT be modified, deleted, replaced, or removed under any circumstances:

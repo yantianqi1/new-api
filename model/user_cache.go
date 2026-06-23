@@ -15,13 +15,14 @@ import (
 
 // UserBase struct remains the same as it represents the cached data structure
 type UserBase struct {
-	Id       int    `json:"id"`
-	Group    string `json:"group"`
-	Email    string `json:"email"`
-	Quota    int    `json:"quota"`
-	Status   int    `json:"status"`
-	Username string `json:"username"`
-	Setting  string `json:"setting"`
+	Id         int    `json:"id"`
+	Group      string `json:"group"`
+	Email      string `json:"email"`
+	Quota      int    `json:"quota"`
+	BonusQuota int    `json:"bonus_quota"`
+	Status     int    `json:"status"`
+	Username   string `json:"username"`
+	Setting    string `json:"setting"`
 }
 
 func (user *UserBase) WriteContext(c *gin.Context) {
@@ -106,13 +107,14 @@ func GetUserCache(userId int) (userCache *UserBase, err error) {
 
 	// Create cache object from user data
 	userCache = &UserBase{
-		Id:       user.Id,
-		Group:    user.Group,
-		Quota:    user.Quota,
-		Status:   user.Status,
-		Username: user.Username,
-		Setting:  user.Setting,
-		Email:    user.Email,
+		Id:         user.Id,
+		Group:      user.Group,
+		Quota:      user.Quota,
+		BonusQuota: user.BonusQuota,
+		Status:     user.Status,
+		Username:   user.Username,
+		Setting:    user.Setting,
+		Email:      user.Email,
 	}
 
 	return userCache, nil
@@ -143,6 +145,17 @@ func cacheDecrUserQuota(userId int, delta int64) error {
 	return cacheIncrUserQuota(userId, -delta)
 }
 
+func cacheIncrUserBonusQuota(userId int, delta int64) error {
+	if !common.RedisEnabled {
+		return nil
+	}
+	return common.RedisHIncrBy(getUserCacheKey(userId), "BonusQuota", delta)
+}
+
+func cacheDecrUserBonusQuota(userId int, delta int64) error {
+	return cacheIncrUserBonusQuota(userId, -delta)
+}
+
 // Helper functions to get individual fields if needed
 func getUserGroupCache(userId int) (string, error) {
 	cache, err := GetUserCache(userId)
@@ -158,6 +171,14 @@ func getUserQuotaCache(userId int) (int, error) {
 		return 0, err
 	}
 	return cache.Quota, nil
+}
+
+func getUserBonusQuotaCache(userId int) (int, error) {
+	cache, err := GetUserCache(userId)
+	if err != nil {
+		return 0, err
+	}
+	return cache.BonusQuota, nil
 }
 
 func getUserStatusCache(userId int) (int, error) {
@@ -201,6 +222,13 @@ func updateUserQuotaCache(userId int, quota int) error {
 		return nil
 	}
 	return common.RedisHSetField(getUserCacheKey(userId), "Quota", fmt.Sprintf("%d", quota))
+}
+
+func updateUserBonusQuotaCache(userId int, quota int) error {
+	if !common.RedisEnabled {
+		return nil
+	}
+	return common.RedisHSetField(getUserCacheKey(userId), "BonusQuota", fmt.Sprintf("%d", quota))
 }
 
 func updateUserGroupCache(userId int, group string) error {

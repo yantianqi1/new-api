@@ -95,15 +95,24 @@ const UserInfoModal = ({
           {/* 余额信息 */}
           <div style={rowStyle}>
             <div style={colStyle}>
-              {renderLabel(t('余额'), 'success')}
+              {renderLabel(t('付费余额'), 'success')}
               <div style={valueStyle}>{renderQuota(userInfoData.quota)}</div>
             </div>
+            <div style={colStyle}>
+              {renderLabel(t('积分余额'), 'primary')}
+              <div style={valueStyle}>
+                {renderQuota(userInfoData.bonus_quota || 0)}
+              </div>
+            </div>
+          </div>
+          <div style={rowStyle}>
             <div style={colStyle}>
               {renderLabel(t('已用额度'), 'warning')}
               <div style={valueStyle}>
                 {renderQuota(userInfoData.used_quota)}
               </div>
             </div>
+            <div style={colStyle} />
           </div>
 
           {/* 统计信息 */}

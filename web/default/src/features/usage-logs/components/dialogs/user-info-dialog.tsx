@@ -113,9 +113,15 @@ export function UserInfoDialog({
           {/* Balance Info */}
           <div className='grid grid-cols-2 gap-4'>
             <InfoItem
-              label={t('Balance')}
+              label={t('Paid Balance')}
               value={formatQuota(userInfo.quota)}
             />
+            <InfoItem
+              label={t('Points Balance')}
+              value={formatQuota(userInfo.bonus_quota ?? 0)}
+            />
+          </div>
+          <div className='grid grid-cols-2 gap-4'>
             <InfoItem
               label={t('Used Quota')}
               value={formatQuota(userInfo.used_quota)}
