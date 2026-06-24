@@ -181,6 +181,7 @@ export interface LogOtherData {
   is_system_prompt_overwritten?: boolean
   po?: string[]
   billing_source?: string
+  billing_marker?: 'free' | string
   bonus_quota_model?: boolean
   bonus_quota?: number
   paid_quota?: number

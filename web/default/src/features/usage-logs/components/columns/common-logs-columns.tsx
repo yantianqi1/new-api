@@ -29,6 +29,7 @@ import {
 } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
 import {
   Popover,
   PopoverContent,
@@ -53,6 +54,7 @@ import {
   isViolationFeeLog,
   renderAuditContent,
 } from '../../lib/format'
+import { getUsageCostDisplay } from '../../lib/cost-display'
 import {
   isDisplayableLogType,
   isTimingLogType,
@@ -93,12 +95,6 @@ function getGroupRatioText(other: LogOtherData | null): string | null {
   }
 
   return null
-}
-
-function splitQuotaDisplay(value: string): { prefix: string; amount: string } {
-  const match = value.match(/^([^0-9+\-.,\s]+)(.+)$/)
-  if (!match) return { prefix: '', amount: value }
-  return { prefix: match[1], amount: match[2] }
 }
 
 function buildDetailSegments(
@@ -790,14 +786,23 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           )
         }
 
-        const quotaStr = formatLogQuota(quota)
-        const quotaDisplay = splitQuotaDisplay(quotaStr)
+        const quotaDisplay = getUsageCostDisplay(formatLogQuota(quota), other)
 
         return (
           <div className='flex flex-col gap-0.5'>
             <span className='border-border/80 bg-muted/60 inline-flex h-6 w-fit items-center rounded-md border px-2 [font-family:var(--font-body)] text-sm leading-none font-semibold tabular-nums'>
               {quotaDisplay.prefix && (
                 <span className='mr-1'>{quotaDisplay.prefix}</span>
+              )}
+              {quotaDisplay.marker === 'free' && (
+                <Badge
+                  variant='outline'
+                  className='border-success/30 bg-success/10 text-success mr-1.5 h-4 px-1.5 text-[10px] leading-none font-semibold'
+                  title={t('Free points')}
+                  aria-label={t('Free points')}
+                >
+                  {t('free')}
+                </Badge>
               )}
               <span>{quotaDisplay.amount}</span>
             </span>

@@ -33,6 +33,11 @@ import {
 } from '../../../../helpers/quota';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import {
+  REDEMPTION_QUOTA_TYPE,
+  REDEMPTION_QUOTA_TYPES,
+  normalizeRedemptionQuotaType,
+} from '../../../../constants/redemption.constants';
+import {
   Button,
   Modal,
   SideSheet,
@@ -68,6 +73,7 @@ const EditRedemptionModal = (props) => {
     name: '',
     quota: 100000,
     amount: Number(quotaToDisplayAmount(100000).toFixed(6)),
+    quota_type: REDEMPTION_QUOTA_TYPE.PAID,
     count: 1,
     expired_time: null,
   });
@@ -113,6 +119,9 @@ const EditRedemptionModal = (props) => {
     let localInputs = { ...values };
     localInputs.count = parseInt(localInputs.count) || 0;
     localInputs.quota = displayAmountToQuota(localInputs.amount);
+    localInputs.quota_type = normalizeRedemptionQuotaType(
+      localInputs.quota_type,
+    );
     if (localInputs.quota <= 0) {
       showError(t('请输入金额'));
       setLoading(false);
@@ -298,6 +307,24 @@ const EditRedemptionModal = (props) => {
                   </div>
 
                   <Row gutter={12}>
+                    {!isEdit && (
+                      <Col span={24}>
+                        <Form.Select
+                          field='quota_type'
+                          label={t('额度类型')}
+                          style={{ width: '100%' }}
+                          optionList={Object.entries(
+                            REDEMPTION_QUOTA_TYPES,
+                          ).map(([value, config]) => ({
+                            value,
+                            label: t(config.optionText),
+                          }))}
+                          rules={[
+                            { required: true, message: t('请选择额度类型') },
+                          ]}
+                        />
+                      </Col>
+                    )}
                     <Col span={24}>
                       <Form.InputNumber
                         field='amount'

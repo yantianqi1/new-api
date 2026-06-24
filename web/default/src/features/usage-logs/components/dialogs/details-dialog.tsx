@@ -32,15 +32,17 @@ import {
   LogIn,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+import { Dialog } from '@/components/dialog'
+import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
+import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+import { DynamicPricingBreakdown } from '@/features/pricing/components/dynamic-pricing-breakdown'
+import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { formatLogQuota, formatTokens, formatUseTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
-import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
-import { Dialog } from '@/components/dialog'
-import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
-import { DynamicPricingBreakdown } from '@/features/pricing/components/dynamic-pricing-breakdown'
+
 import type { UsageLog } from '../../data/schema'
 import {
   parseLogOther,
@@ -153,10 +155,17 @@ function BillingBreakdown(props: {
   const isTieredExpr = other.billing_mode === 'tiered_expr'
   const tieredSummary = getTieredBillingSummary(other)
 
-  const rows: Array<{ label: string; value: string }> = []
+  const rows: Array<{
+    label: string
+    value: React.ReactNode
+    mono?: boolean
+  }> = []
   const priceOpts = { digitsLarge: 4, digitsSmall: 6, abbreviate: false }
   const fmtPrice = (usd: number) => formatBillingCurrencyFromUSD(usd, priceOpts)
   const baseInputUSD = other.model_ratio != null ? other.model_ratio * 2.0 : 0
+  const bonusQuota = other.bonus_quota ?? 0
+  const paidQuota = other.paid_quota ?? 0
+  const hasWalletQuotaSplit = bonusQuota > 0 || paidQuota > 0
 
   if (isTieredExpr) {
     rows.push({
@@ -315,6 +324,45 @@ function BillingBreakdown(props: {
     })
   }
 
+  if (hasWalletQuotaSplit) {
+    rows.push({
+      label: t('Deducted From'),
+      value: (
+        <span className='flex flex-wrap items-center gap-1'>
+          {bonusQuota > 0 && (
+            <StatusBadge
+              label={t('Points')}
+              variant='success'
+              size='sm'
+              copyable={false}
+            />
+          )}
+          {paidQuota > 0 && (
+            <StatusBadge
+              label={t('Paid Balance')}
+              variant='neutral'
+              size='sm'
+              copyable={false}
+            />
+          )}
+        </span>
+      ),
+      mono: false,
+    })
+    if (bonusQuota > 0) {
+      rows.push({
+        label: t('Points Deducted'),
+        value: formatLogQuota(bonusQuota),
+      })
+    }
+    if (paidQuota > 0) {
+      rows.push({
+        label: t('Balance Deducted'),
+        value: formatLogQuota(paidQuota),
+      })
+    }
+  }
+
   rows.push({
     label: t('Total Cost'),
     value: formatLogQuota(log.quota),
@@ -325,7 +373,12 @@ function BillingBreakdown(props: {
   return (
     <DetailSection label={t('Billing Details')}>
       {rows.map((row, idx) => (
-        <DetailRow key={idx} label={row.label} value={row.value} mono />
+        <DetailRow
+          key={idx}
+          label={row.label}
+          value={row.value}
+          mono={row.mono ?? typeof row.value === 'string'}
+        />
       ))}
     </DetailSection>
   )

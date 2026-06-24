@@ -52,6 +52,7 @@ func ginContextWithTokenQuota(tokenQuota int) *gin.Context {
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
 	c.Set("token_quota", tokenQuota)
 	return c
 }
@@ -163,4 +164,28 @@ func TestNewBillingSessionUsesBonusAndPaidForEligibleModel(t *testing.T) {
 	assert.True(t, info.BonusQuotaModel)
 	assert.Equal(t, 250, info.BonusQuotaPreConsumed)
 	assert.Equal(t, 150, info.PaidQuotaPreConsumed)
+}
+
+func TestAppendBillingInfoMarksFreePointBilling(t *testing.T) {
+	truncate(t)
+	resetBonusQuotaModels(t)
+	require.NoError(t, ratio_setting.UpdateBonusQuotaModelsByJSONString(`{"free-model":true}`))
+	seedBonusUser(t, 96, 300, 250)
+	seedToken(t, 960, 96, "sk-free-marker", 5000)
+
+	info := bonusRelayInfo(96, "free-model", 960, "sk-free-marker")
+	session, apiErr := NewBillingSession(ginContextWithTokenQuota(5000), info, 400)
+
+	require.Nil(t, apiErr)
+	require.NotNil(t, session)
+	require.NoError(t, session.Settle(300))
+
+	other := map[string]interface{}{}
+	appendBillingInfo(info, other)
+
+	assert.Equal(t, BillingSourceWallet, other["billing_source"])
+	assert.Equal(t, true, other["bonus_quota_model"])
+	assert.Equal(t, 250, other["bonus_quota"])
+	assert.Equal(t, 50, other["paid_quota"])
+	assert.Equal(t, "free", other["billing_marker"])
 }

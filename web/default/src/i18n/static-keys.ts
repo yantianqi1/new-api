@@ -134,6 +134,18 @@ export const STATIC_I18N_KEYS = [
   'Expired time cannot be earlier than current time',
   'Quota must be a positive number',
   'Successfully created {{count}} redemption codes',
+  'Paid balance',
+  'Free points',
+  'Increase balance',
+  'Increase free points',
+  'Adds to recharge and redemption balance.',
+  'Adds to the user points balance.',
+  'Redemption balance type',
+  'Choose what balance this redemption code credits.',
+  'Deducted From',
+  'Points',
+  'Points Deducted',
+  'Balance Deducted',
 
   // Home page (constants-driven labels)
   'Cost Tracking',

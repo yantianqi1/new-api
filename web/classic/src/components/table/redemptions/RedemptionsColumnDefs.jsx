@@ -25,6 +25,8 @@ import {
   REDEMPTION_STATUS,
   REDEMPTION_STATUS_MAP,
   REDEMPTION_ACTIONS,
+  REDEMPTION_QUOTA_TYPES,
+  normalizeRedemptionQuotaType,
 } from '../../../constants/redemption.constants';
 
 /**
@@ -112,6 +114,21 @@ export const getRedemptionsColumns = ({
           <div>
             <Tag color='grey' shape='circle'>
               {renderQuota(parseInt(text))}
+            </Tag>
+          </div>
+        );
+      },
+    },
+    {
+      title: t('类型'),
+      dataIndex: 'quota_type',
+      render: (text) => {
+        const config =
+          REDEMPTION_QUOTA_TYPES[normalizeRedemptionQuotaType(text)];
+        return (
+          <div>
+            <Tag color={config.color} shape='circle'>
+              {t(config.text)}
             </Tag>
           </div>
         );

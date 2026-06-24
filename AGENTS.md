@@ -111,6 +111,7 @@ Do NOT directly import or call `encoding/json` in business code. `json.RawMessag
 
 ### Frontend Rules
 
+- Local UI startup preference: when asked to start the project or inspect the UI locally, start `web/classic/` (the 爱玩Ai interface) by default. Only start `web/default/` when explicitly requested. If a local backend is exposed on a different port, keep `VITE_REACT_APP_SERVER_URL` unset and use `NEW_API_PROXY_TARGET` for the classic dev-server proxy target.
 - Use `bun` as the preferred package manager and script runner for the frontend (`web/default/`):
   - `bun install` for dependency installation
   - `bun run dev` for development server
@@ -119,6 +120,16 @@ Do NOT directly import or call `encoding/json` in business code. `json.RawMessag
 - Frontend UI text must support i18n with `i18next`/`react-i18next`. Use flat JSON locale files in `web/default/src/i18n/locales/{lang}.json`, with English source strings as keys.
 - In React components, use `useTranslation()` and call `t('English key')` for user-facing text.
 - Follow `web/default/AGENTS.md` for detailed frontend conventions, including TypeScript, component structure, styling, accessibility, testing, and build checks.
+
+### Local Docker Startup
+
+- When the user asks to start the service locally, use the established local MySQL Docker mode by default, not the PostgreSQL compose files and not the old SQLite preview container.
+- Use the existing persistent MySQL data in `data/mysql`; never remove this directory, run `docker compose down -v`, or recreate the database volume unless the user explicitly asks to reset data.
+- Use these local container names when present: `new-api-local` for the app, `new-api-local-mysql` for MySQL, `new-api-local-redis` for Redis, and `new-api-local-net` for the Docker network.
+- The local stack uses `mysql:8.4`, `redis:7-alpine`, database `new-api`, MySQL root password `123456`, and app DSN `root:123456@tcp(new-api-local-mysql:3306)/new-api?charset=utf8mb4&parseTime=true&loc=Local`.
+- Keep the app exposed at `http://127.0.0.1:3002` with container port mapping `3002:3000`; verify startup with `curl -fsS http://127.0.0.1:3002/api/status`.
+- App data should stay in `data/app`, logs in `logs`, and MySQL data in `data/mysql`.
+- If the old `new-api-local-preview` SQLite container is running, stop it to avoid confusion, but preserve `/tmp/new-api-local-preview-data/local-preview.db` unless the user explicitly asks to delete it.
 
 ### Deployment: 154.40.43.47
 

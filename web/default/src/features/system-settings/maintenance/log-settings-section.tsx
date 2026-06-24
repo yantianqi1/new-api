@@ -69,15 +69,18 @@ import {
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
+import type { UpdateOptionRequest } from '../types'
 
 const logSettingsSchema = z.object({
   LogConsumeEnabled: z.boolean(),
+  HideUserLogUpstreamModelEnabled: z.boolean(),
 })
 
 type LogSettingsFormValues = z.infer<typeof logSettingsSchema>
 
 type LogSettingsSectionProps = {
   defaultEnabled: boolean
+  defaultHideUpstreamModel: boolean
 }
 
 type ServerLogInfo = {
@@ -129,6 +132,7 @@ const quickSelectOptions = [
 
 export function LogSettingsSection({
   defaultEnabled,
+  defaultHideUpstreamModel,
 }: LogSettingsSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
@@ -136,6 +140,7 @@ export function LogSettingsSection({
     resolver: zodResolver(logSettingsSchema),
     defaultValues: {
       LogConsumeEnabled: defaultEnabled,
+      HideUserLogUpstreamModelEnabled: defaultHideUpstreamModel,
     },
   })
 
@@ -161,8 +166,11 @@ export function LogSettingsSection({
   }, [])
 
   useEffect(() => {
-    form.reset({ LogConsumeEnabled: defaultEnabled })
-  }, [defaultEnabled, form])
+    form.reset({
+      LogConsumeEnabled: defaultEnabled,
+      HideUserLogUpstreamModelEnabled: defaultHideUpstreamModel,
+    })
+  }, [defaultEnabled, defaultHideUpstreamModel, form])
 
   useEffect(() => {
     fetchServerLogInfo()
@@ -179,11 +187,24 @@ export function LogSettingsSection({
   }, [purgeDate])
 
   const onSubmit = async (values: LogSettingsFormValues) => {
-    if (values.LogConsumeEnabled === defaultEnabled) return
-    await updateOption.mutateAsync({
-      key: 'LogConsumeEnabled',
-      value: values.LogConsumeEnabled,
-    })
+    const updates: UpdateOptionRequest[] = []
+    if (values.LogConsumeEnabled !== defaultEnabled) {
+      updates.push({
+        key: 'LogConsumeEnabled',
+        value: values.LogConsumeEnabled,
+      })
+    }
+    if (
+      values.HideUserLogUpstreamModelEnabled !== defaultHideUpstreamModel
+    ) {
+      updates.push({
+        key: 'HideUserLogUpstreamModelEnabled',
+        value: values.HideUserLogUpstreamModelEnabled,
+      })
+    }
+    for (const update of updates) {
+      await updateOption.mutateAsync(update)
+    }
   }
 
   const handleRequestCleanLogs = () => {
@@ -275,6 +296,29 @@ export function LogSettingsSection({
                   <FormDescription>
                     {t(
                       'Track per-request consumption to power usage analytics. Keeping this on increases database writes.'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <FormMessage />
+              </SettingsSwitchItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name='HideUserLogUpstreamModelEnabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Hide actual model in user logs')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'When model mapping is applied, regular users only see the requested model name in usage logs. Administrators can still view the actual upstream model.'
                     )}
                   </FormDescription>
                 </SettingsSwitchContent>

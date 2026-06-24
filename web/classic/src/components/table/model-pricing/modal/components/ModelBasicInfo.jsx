@@ -46,6 +46,10 @@ const ModelBasicInfo = ({ modelData, vendorsMap = {}, t }) => {
   const getModelTags = () => {
     const tags = [];
 
+    if (modelData?.bonus_quota_enabled) {
+      tags.push({ text: t('积分抵扣'), color: 'green' });
+    }
+
     if (modelData?.tags) {
       const customTags = modelData.tags.split(',').filter((tag) => tag.trim());
       customTags.forEach((tag) => {

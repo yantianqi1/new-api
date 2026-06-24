@@ -18,6 +18,18 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { z } from 'zod'
 
+export const REDEMPTION_QUOTA_TYPE = {
+  PAID: 'paid',
+  BONUS: 'bonus',
+} as const
+
+export const REDEMPTION_QUOTA_TYPE_VALUES = [
+  REDEMPTION_QUOTA_TYPE.PAID,
+  REDEMPTION_QUOTA_TYPE.BONUS,
+] as const
+
+export type RedemptionQuotaType = (typeof REDEMPTION_QUOTA_TYPE_VALUES)[number]
+
 // ============================================================================
 // Redemption Schema & Types
 // ============================================================================
@@ -29,6 +41,9 @@ export const redemptionSchema = z.object({
   key: z.string(),
   status: z.number(), // 1: enabled, 2: disabled, 3: used
   quota: z.number(),
+  quota_type: z
+    .enum(REDEMPTION_QUOTA_TYPE_VALUES)
+    .default(REDEMPTION_QUOTA_TYPE.PAID),
   created_time: z.number(),
   redeemed_time: z.number(),
   expired_time: z.number(), // 0 for never expires
@@ -73,6 +88,7 @@ export interface RedemptionFormData {
   id?: number
   name: string
   quota: number
+  quota_type?: RedemptionQuotaType
   expired_time: number
   count?: number // Only for create
   status?: number // Only for status update

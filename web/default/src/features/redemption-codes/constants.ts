@@ -17,7 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { type TFunction } from 'i18next'
+
 import { type StatusBadgeProps } from '@/components/status-badge'
+
+import {
+  REDEMPTION_QUOTA_TYPE,
+  type RedemptionQuotaType,
+} from './types'
 
 // ============================================================================
 // Redemption Status Configuration
@@ -32,6 +38,40 @@ export const REDEMPTION_STATUS = {
 export const REDEMPTION_STATUS_VALUES = Object.values(REDEMPTION_STATUS).map(
   (value) => String(value)
 ) as `${number}`[]
+
+// ============================================================================
+// Redemption Quota Type Configuration
+// ============================================================================
+
+export const REDEMPTION_QUOTA_TYPES: Record<
+  RedemptionQuotaType,
+  Pick<StatusBadgeProps, 'variant'> & {
+    labelKey: string
+    optionLabelKey: string
+    descriptionKey: string
+  }
+> = {
+  [REDEMPTION_QUOTA_TYPE.PAID]: {
+    labelKey: 'Paid balance',
+    optionLabelKey: 'Increase balance',
+    descriptionKey: 'Adds to recharge and redemption balance.',
+    variant: 'neutral',
+  },
+  [REDEMPTION_QUOTA_TYPE.BONUS]: {
+    labelKey: 'Free points',
+    optionLabelKey: 'Increase free points',
+    descriptionKey: 'Adds to the user points balance.',
+    variant: 'success',
+  },
+}
+
+export function normalizeRedemptionQuotaType(
+  value: string | undefined
+): RedemptionQuotaType {
+  return value === REDEMPTION_QUOTA_TYPE.BONUS
+    ? REDEMPTION_QUOTA_TYPE.BONUS
+    : REDEMPTION_QUOTA_TYPE.PAID
+}
 
 // labelKey values are i18n keys; use t(config.labelKey) in components
 export const REDEMPTION_STATUSES: Record<

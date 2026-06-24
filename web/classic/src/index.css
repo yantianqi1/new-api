@@ -63,6 +63,8 @@ body {
 
 .classic-home-hero {
   flex: 1 0 auto;
+  position: relative;
+  isolation: isolate;
   background:
     linear-gradient(
       rgba(var(--semi-grey-0), 0.9),
@@ -76,7 +78,23 @@ body {
     48px 48px;
 }
 
+.classic-home-hero::before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: '';
+  z-index: 0;
+  background-image: var(--classic-home-hero-bg, none);
+  background-position: center;
+  background-size: cover;
+  filter: blur(1px);
+  opacity: 0.42;
+  transform: scale(1.015);
+}
+
 .classic-home-shell {
+  position: relative;
+  z-index: 1;
   width: min(1160px, calc(100% - 32px));
   margin: 0 auto;
 }
@@ -86,7 +104,7 @@ body {
   grid-template-columns: minmax(0, 1.05fr) minmax(360px, 0.95fr);
   gap: 56px;
   align-items: center;
-  padding: 96px 0 38px;
+  padding: 96px 0 24px;
 }
 
 .classic-home-hero-copy {
@@ -320,36 +338,186 @@ body {
   font-weight: 700;
 }
 
-.classic-home-metrics {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-  padding: 0 0 48px;
+.classic-home-quota-card {
+  max-width: none;
+  margin-bottom: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
-.classic-home-metrics > div {
-  min-height: 88px;
-  padding: 18px 20px;
+.classic-home-quota-heading {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.classic-home-quota-heading > div:nth-child(2) {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.classic-home-quota-heading h2 {
+  margin: 4px 0 0;
+  color: var(--semi-color-text-0);
+  font-size: 20px;
+  line-height: 1.28;
+}
+
+.classic-home-quota-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+  font-size: 22px;
+}
+
+.classic-home-quota-heading .classic-home-quota-button,
+.classic-home-quota-heading .classic-home-quota-button .semi-button-content {
+  color: #ffffff !important;
+  font-weight: 700;
+}
+
+.classic-home-quota-tabs {
+  margin-top: 12px;
+}
+
+.classic-home-quota-tabs .semi-tabs-bar {
+  margin-bottom: 12px;
+}
+
+.classic-home-quota-tabs .semi-tabs-content {
+  padding-top: 0;
+}
+
+.classic-home-quota-endpoint {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 14px;
   border: 1px solid var(--semi-color-border);
   border-radius: 8px;
-  background: rgba(var(--semi-grey-0), 0.78);
+  background: var(--semi-color-fill-0);
 }
 
-.classic-home-metrics strong,
-.classic-home-metrics span {
+.classic-home-quota-endpoint span {
+  flex: 0 0 auto;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.classic-home-quota-endpoint code {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--semi-color-text-0);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.classic-home-quota-button {
+  min-width: 112px;
+  min-height: 40px;
+  border-radius: 999px !important;
+}
+
+.classic-home-quota-result {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.classic-home-quota-result > div {
+  min-width: 0;
+  min-height: 70px;
+  padding: 12px 14px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 8px;
+  background: var(--semi-color-fill-0);
+}
+
+.classic-home-quota-result span,
+.classic-home-quota-result strong {
   display: block;
 }
 
-.classic-home-metrics strong {
-  color: var(--semi-color-text-0);
-  font-size: 24px;
-  line-height: 1.15;
+.classic-home-quota-result span {
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+  font-weight: 600;
 }
 
-.classic-home-metrics span {
-  margin-top: 6px;
-  color: var(--semi-color-text-2);
-  font-size: 14px;
+.classic-home-quota-result strong {
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+  color: var(--semi-color-text-0);
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.classic-home-quota-examples {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 0;
+}
+
+.classic-home-quota-example {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.04);
+}
+
+.classic-home-quota-example-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 36px;
+  padding: 0 10px 0 14px;
+  border-bottom: 1px solid var(--semi-color-border);
+}
+
+.classic-home-quota-example-header span {
+  color: var(--semi-color-text-1);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.classic-home-quota-example-header button {
+  min-width: 32px;
+  min-height: 32px;
+  border-radius: 999px !important;
+}
+
+.classic-home-quota-example pre {
+  max-height: 132px;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  color: var(--semi-color-text-0);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.classic-home-quota-response {
+  margin-top: 0;
 }
 
 .dark .classic-home-hero {
@@ -361,6 +529,10 @@ body {
     auto,
     48px 48px,
     48px 48px;
+}
+
+.dark .classic-home-hero::before {
+  opacity: 0.24;
 }
 
 .dark .classic-home-eyebrow,
@@ -395,6 +567,19 @@ body {
   color: #fbbf24;
 }
 
+.dark .classic-home-quota-card {
+  background: transparent;
+}
+
+.dark .classic-home-quota-icon {
+  background: rgba(96, 165, 250, 0.14);
+  color: #93c5fd;
+}
+
+.dark .classic-home-quota-example {
+  background: rgba(255, 255, 255, 0.04);
+}
+
 @media (max-width: 1024px) {
   .classic-home-hero-grid {
     grid-template-columns: 1fr 1fr;
@@ -412,7 +597,8 @@ body {
   }
 
   .classic-home-hero-grid,
-  .classic-home-metrics {
+  .classic-home-quota-result,
+  .classic-home-quota-examples {
     grid-template-columns: 1fr;
   }
 
@@ -450,8 +636,28 @@ body {
     padding: 12px 14px;
   }
 
-  .classic-home-metrics {
-    padding-bottom: 34px;
+  .classic-home-quota-card {
+    padding-bottom: 0;
+  }
+
+  .classic-home-quota-heading {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .classic-home-quota-endpoint {
+    align-items: flex-start;
+    flex-direction: column;
+    justify-content: center;
+    padding: 12px 14px;
+  }
+
+  .classic-home-quota-endpoint code {
+    white-space: normal;
+  }
+
+  .classic-home-quota-button {
+    width: 100%;
   }
 }
 

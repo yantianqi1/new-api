@@ -16,14 +16,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { zodResolver } from '@hookform/resolvers/zod'
 import { type FormEvent, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
-import { formatQuota, parseQuotaFromDollars } from '@/lib/format'
-import { addTimeToDate } from '@/lib/time'
+
+import { DateTimePicker } from '@/components/datetime-picker'
+import {
+  SideDrawerSection,
+  sideDrawerContentClassName,
+  sideDrawerFooterClassName,
+  sideDrawerFormClassName,
+  sideDrawerHeaderClassName,
+} from '@/components/drawer-layout'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -35,6 +41,8 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import {
   Sheet,
   SheetClose,
@@ -44,16 +52,12 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { DateTimePicker } from '@/components/datetime-picker'
-import {
-  SideDrawerSection,
-  sideDrawerContentClassName,
-  sideDrawerFooterClassName,
-  sideDrawerFormClassName,
-  sideDrawerHeaderClassName,
-} from '@/components/drawer-layout'
+import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
+import { formatQuota, parseQuotaFromDollars } from '@/lib/format'
+import { addTimeToDate } from '@/lib/time'
+
 import { createRedemption, updateRedemption, getRedemption } from '../api'
-import { SUCCESS_MESSAGES } from '../constants'
+import { REDEMPTION_QUOTA_TYPES, SUCCESS_MESSAGES } from '../constants'
 import {
   getRedemptionFormSchema,
   type RedemptionFormValues,
@@ -61,7 +65,11 @@ import {
   transformFormDataToPayload,
   transformRedemptionToFormDefaults,
 } from '../lib'
-import { type Redemption } from '../types'
+import {
+  REDEMPTION_QUOTA_TYPE_VALUES,
+  type Redemption,
+  type RedemptionQuotaType,
+} from '../types'
 import { useRedemptions } from './redemptions-provider'
 
 type RedemptionsMutateDrawerProps = {
@@ -239,6 +247,56 @@ export function RedemptionsMutateDrawer({
                   </FormItem>
                 )}
               />
+
+              {!isUpdate && (
+                <FormField
+                  control={form.control}
+                  name='quota_type'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Redemption balance type')}</FormLabel>
+                      <FormControl>
+                        <RadioGroup
+                          value={field.value}
+                          onValueChange={(value) =>
+                            field.onChange(value as RedemptionQuotaType)
+                          }
+                          className='grid gap-2 sm:grid-cols-2'
+                        >
+                          {REDEMPTION_QUOTA_TYPE_VALUES.map((type) => {
+                            const config = REDEMPTION_QUOTA_TYPES[type]
+                            return (
+                              <Label
+                                key={type}
+                                htmlFor={`redemption-quota-type-${type}`}
+                                className='hover:border-primary/40 focus-within:border-primary/50 has-data-[checked]:border-primary has-data-[checked]:ring-primary/20 border-muted flex cursor-pointer items-start gap-3 rounded-lg border p-3 font-normal transition-all has-data-[checked]:ring-2'
+                              >
+                                <RadioGroupItem
+                                  id={`redemption-quota-type-${type}`}
+                                  value={type}
+                                  className='mt-0.5'
+                                />
+                                <span className='flex min-w-0 flex-col gap-1'>
+                                  <span className='text-sm font-medium'>
+                                    {t(config.optionLabelKey)}
+                                  </span>
+                                  <span className='text-muted-foreground text-xs leading-5'>
+                                    {t(config.descriptionKey)}
+                                  </span>
+                                </span>
+                              </Label>
+                            )
+                          })}
+                        </RadioGroup>
+                      </FormControl>
+                      <FormDescription>
+                        {t('Choose what balance this redemption code credits.')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
 
               <FormField
                 control={form.control}

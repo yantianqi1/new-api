@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Modal } from '@douyinfe/semi-ui';
+import { Modal, Space, Tag } from '@douyinfe/semi-ui';
 import {
   API,
   getTodayStartTimestamp,
@@ -461,6 +461,40 @@ export const useLogsData = () => {
             key: t('实际模型'),
             value: other.upstream_model_name,
           });
+        }
+
+        const bonusQuota = Number(other?.bonus_quota || 0);
+        const paidQuota = Number(other?.paid_quota || 0);
+        if (bonusQuota > 0 || paidQuota > 0) {
+          expandDataLocal.push({
+            key: t('扣费来源'),
+            value: (
+              <Space wrap>
+                {bonusQuota > 0 && (
+                  <Tag color='green' shape='circle'>
+                    {t('免费积分')}
+                  </Tag>
+                )}
+                {paidQuota > 0 && (
+                  <Tag color='grey' shape='circle'>
+                    {t('付费额度')}
+                  </Tag>
+                )}
+              </Space>
+            ),
+          });
+          if (bonusQuota > 0) {
+            expandDataLocal.push({
+              key: t('积分扣费'),
+              value: renderQuota(bonusQuota),
+            });
+          }
+          if (paidQuota > 0) {
+            expandDataLocal.push({
+              key: t('额度扣费'),
+              value: renderQuota(paidQuota),
+            });
+          }
         }
 
         const isViolationFeeLog =

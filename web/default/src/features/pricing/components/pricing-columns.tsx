@@ -96,15 +96,23 @@ export function usePricingColumns(
       cell: ({ row }) => {
         const isTokenBased = row.original.quota_type === QUOTA_TYPE_VALUES.TOKEN
         return (
-          <StatusBadge
-            label={isTokenBased ? t('Token') : t('Request')}
-            variant={isTokenBased ? 'info' : 'neutral'}
-            copyable={false}
-            className='-ml-1.5'
-          />
+          <div className='-ml-1.5 flex flex-wrap gap-1'>
+            <StatusBadge
+              label={isTokenBased ? t('Token') : t('Request')}
+              variant={isTokenBased ? 'info' : 'neutral'}
+              copyable={false}
+            />
+            {row.original.bonus_quota_enabled && (
+              <StatusBadge
+                label={t('Points deduction')}
+                variant='success'
+                copyable={false}
+              />
+            )}
+          </div>
         )
       },
-      size: 80,
+      size: 140,
       enableSorting: false,
     },
 

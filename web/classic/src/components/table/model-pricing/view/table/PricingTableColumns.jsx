@@ -67,19 +67,35 @@ const renderVendor = (vendorName, vendorIcon, t) => {
 };
 
 // Render tags list using RenderUtils
-const renderTags = (text) => {
-  if (!text) return '-';
-  const tagsArr = text.split(',').filter((tag) => tag.trim());
+const renderTags = (text, record, t) => {
+  const tagsArr = text ? text.split(',').filter((tag) => tag.trim()) : [];
+  if (!record?.bonus_quota_enabled && tagsArr.length === 0) return '-';
+  const items = [];
+  if (record?.bonus_quota_enabled) {
+    items.push({
+      key: 'bonus-quota',
+      text: t('积分抵扣'),
+      color: 'green',
+    });
+  }
+  tagsArr.forEach((tag, idx) => {
+    const tagText = tag.trim();
+    items.push({
+      key: `custom-${idx}`,
+      text: tagText,
+      color: stringToColor(tagText),
+    });
+  });
   return renderLimitedItems({
-    items: tagsArr,
-    renderItem: (tag, idx) => (
+    items,
+    renderItem: (tag) => (
       <Tag
-        key={idx}
-        color={stringToColor(tag.trim())}
+        key={tag.key}
+        color={tag.color}
         shape='circle'
         size='small'
       >
-        {tag.trim()}
+        {tag.text}
       </Tag>
     ),
     maxDisplay: 3,
@@ -174,7 +190,7 @@ export const getPricingTableColumns = ({
   const tagsColumn = {
     title: t('标签'),
     dataIndex: 'tags',
-    render: renderTags,
+    render: (text, record) => renderTags(text, record, t),
   };
 
   const vendorColumn = {

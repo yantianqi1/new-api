@@ -236,6 +236,14 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
           <span className='text-muted-foreground text-xs font-medium'>
             {isTokenBased ? t('Token-based') : t('Per Request')}
           </span>
+          {props.model.bonus_quota_enabled && (
+            <StatusBadge
+              label={t('Points deduction')}
+              variant='success'
+              copyable={false}
+              size='sm'
+            />
+          )}
           {isDynamicPricing && (
             <StatusBadge
               label={t('Dynamic Pricing')}

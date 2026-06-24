@@ -49,6 +49,7 @@ import { StaticDataTable } from '@/components/data-table'
 import { sideDrawerContentClassName } from '@/components/drawer-layout'
 import { GroupBadge } from '@/components/group-badge'
 import { PublicLayout } from '@/components/layout'
+import { StatusBadge } from '@/components/status-badge'
 import { getPerfMetrics } from '@/features/performance-metrics/api'
 import {
   formatLatency,
@@ -465,6 +466,14 @@ function ModelBackendProviderSection(props: { model: PricingModel }) {
     </CatalogInfoCell>
   )
 
+  if (model.bonus_quota_enabled) {
+    cells.push(
+      <CatalogInfoCell key='points-deduction' label={t('Points')}>
+        <CatalogPillList items={[t('Points deduction')]} />
+      </CatalogInfoCell>
+    )
+  }
+
   if (groups.length > 0) {
     cells.push(
       <CatalogInfoCell key='groups' label={t('Groups')}>
@@ -560,6 +569,17 @@ function ModelHeader(props: { model: PricingModel }) {
             ? t('Token-based')
             : t('Per Request')}
         </span>
+        {model.bonus_quota_enabled && (
+          <>
+            <span className='text-muted-foreground/30'>·</span>
+            <StatusBadge
+              label={t('Points deduction')}
+              variant='success'
+              copyable={false}
+              size='sm'
+            />
+          </>
+        )}
         {model.billing_mode === 'tiered_expr' && model.billing_expr && (
           <>
             <span className='text-muted-foreground/30'>·</span>

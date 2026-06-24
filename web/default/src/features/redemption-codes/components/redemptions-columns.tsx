@@ -18,17 +18,24 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
-import { formatQuota, formatTimestampToDate } from '@/lib/format'
+
+import { MaskedValueDisplay } from '@/components/masked-value-display'
+import { StatusBadge } from '@/components/status-badge'
+import { TableId } from '@/components/table-id'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { MaskedValueDisplay } from '@/components/masked-value-display'
-import { StatusBadge } from '@/components/status-badge'
-import { TableId } from '@/components/table-id'
-import { REDEMPTION_FILTER_EXPIRED, REDEMPTION_STATUSES } from '../constants'
+import { formatQuota, formatTimestampToDate } from '@/lib/format'
+
+import {
+  REDEMPTION_FILTER_EXPIRED,
+  REDEMPTION_QUOTA_TYPES,
+  REDEMPTION_STATUSES,
+  normalizeRedemptionQuotaType,
+} from '../constants'
 import { isRedemptionExpired, isTimestampExpired } from '../lib'
 import { type Redemption } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
@@ -167,6 +174,26 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
         )
       },
       size: 120,
+    },
+    {
+      accessorKey: 'quota_type',
+      header: t('Type'),
+      meta: { mobileHidden: true },
+      cell: ({ row }) => {
+        const quotaType = normalizeRedemptionQuotaType(
+          row.getValue('quota_type') as string | undefined
+        )
+        const config = REDEMPTION_QUOTA_TYPES[quotaType]
+        return (
+          <StatusBadge
+            label={t(config.labelKey)}
+            variant={config.variant}
+            copyable={false}
+            className='-ml-1.5'
+          />
+        )
+      },
+      size: 140,
     },
     {
       accessorKey: 'created_time',

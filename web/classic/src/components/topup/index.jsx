@@ -182,13 +182,7 @@ const TopUp = () => {
           content: t('成功兑换额度：') + renderQuota(data),
           centered: true,
         });
-        if (userState.user) {
-          const updatedUser = {
-            ...userState.user,
-            quota: userState.user.quota + data,
-          };
-          userDispatch({ type: 'login', payload: updatedUser });
-        }
+        await getUserQuota();
         setRedemptionCode('');
       } else {
         showError(message);

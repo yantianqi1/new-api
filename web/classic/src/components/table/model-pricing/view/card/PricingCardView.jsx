@@ -176,6 +176,13 @@ const PricingCardView = ({
 
     // 自定义标签（右边）
     const customTags = [];
+    if (record.bonus_quota_enabled) {
+      customTags.push(
+        <Tag key='bonus-quota' shape='circle' color='green' size='small'>
+          {t('积分抵扣')}
+        </Tag>,
+      );
+    }
     if (record.tags) {
       const tagArr = record.tags.split(',').filter(Boolean);
       tagArr.forEach((tg, idx) => {

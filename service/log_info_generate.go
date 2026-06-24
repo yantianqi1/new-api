@@ -133,6 +133,7 @@ func appendBillingInfo(relayInfo *relaycommon.RelayInfo, other map[string]interf
 		}
 		if relayInfo.BonusQuotaConsumed > 0 {
 			other["bonus_quota"] = relayInfo.BonusQuotaConsumed
+			other["billing_marker"] = "free"
 		}
 		if relayInfo.PaidQuotaConsumed > 0 {
 			other["paid_quota"] = relayInfo.PaidQuotaConsumed

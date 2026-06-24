@@ -54,6 +54,8 @@ export type PricingModel = {
   billing_mode?: string
   /** Raw expression describing dynamic / tiered billing */
   billing_expr?: string
+  /** Whether this model can consume points balance before paid balance */
+  bonus_quota_enabled?: boolean
   /** Pricing version returned by backend, useful for cache busting */
   pricing_version?: string
   /**

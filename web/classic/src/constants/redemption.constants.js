@@ -23,6 +23,30 @@ export const REDEMPTION_STATUS = {
   USED: 3, // Used
 };
 
+export const REDEMPTION_QUOTA_TYPE = {
+  PAID: 'paid',
+  BONUS: 'bonus',
+};
+
+export const REDEMPTION_QUOTA_TYPES = {
+  [REDEMPTION_QUOTA_TYPE.PAID]: {
+    color: 'grey',
+    text: '付费额度',
+    optionText: '增加额度',
+  },
+  [REDEMPTION_QUOTA_TYPE.BONUS]: {
+    color: 'green',
+    text: '免费积分',
+    optionText: '增加免费积分',
+  },
+};
+
+export const normalizeRedemptionQuotaType = (quotaType) => {
+  return quotaType === REDEMPTION_QUOTA_TYPE.BONUS
+    ? REDEMPTION_QUOTA_TYPE.BONUS
+    : REDEMPTION_QUOTA_TYPE.PAID;
+};
+
 // Redemption code status display mapping
 export const REDEMPTION_STATUS_MAP = {
   [REDEMPTION_STATUS.UNUSED]: {

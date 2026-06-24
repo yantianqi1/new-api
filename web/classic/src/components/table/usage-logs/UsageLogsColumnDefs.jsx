@@ -826,7 +826,23 @@ export const getLogsColumns = ({
             </Tooltip>
           );
         }
-        return <>{renderQuota(text, 6)}</>;
+        const quotaText = renderQuota(text, 6);
+        const isFreePointsDeducted =
+          other?.billing_marker === 'free' ||
+          Number(other?.bonus_quota || 0) > 0;
+        const quotaAmount = quotaText.replace(/^[^0-9+\-.,\s]+/, '');
+        return (
+          <Space spacing={4} align='center'>
+            {isFreePointsDeducted && (
+              <Tooltip content={t('免费积分')}>
+                <Tag color='green' shape='circle' size='small'>
+                  free
+                </Tag>
+              </Tooltip>
+            )}
+            <span>{isFreePointsDeducted ? quotaAmount : quotaText}</span>
+          </Space>
+        );
       },
     },
     {
