@@ -952,9 +952,9 @@ export const renderGroupOption = (item) => {
     },
   };
 
-  const handleClick = () => {
+  const handleClick = (e) => {
     if (!disabled && onClick) {
-      onClick();
+      onClick(e);
     }
   };
 
@@ -966,9 +966,13 @@ export const renderGroupOption = (item) => {
 
   return (
       <div
-          style={baseStyle}
+          className={className}
+          style={{ ...style, ...baseStyle }}
           onClick={handleClick}
           onMouseEnter={handleMouseEnter}
+          role='option'
+          aria-selected={selected ? 'true' : 'false'}
+          aria-disabled={disabled ? 'true' : 'false'}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <Typography.Text strong type={disabled ? 'tertiary' : undefined}>

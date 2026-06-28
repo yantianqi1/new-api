@@ -24,6 +24,7 @@ import {
   showSuccess,
   timestamp2string,
   renderGroupOption,
+  buildTokenGroupOptions,
   getCurrencyConfig,
   getModelCategories,
   selectFilter,
@@ -137,11 +138,7 @@ const EditTokenModal = (props) => {
     let res = await API.get(`/api/user/self/groups`);
     const { success, message, data } = res.data;
     if (success) {
-      let localGroupOptions = Object.entries(data).map(([group, info]) => ({
-        label: info.desc,
-        value: group,
-        ratio: info.ratio,
-      }));
+      let localGroupOptions = buildTokenGroupOptions(data);
       if (statusState?.status?.default_use_auto_group) {
         if (localGroupOptions.some((group) => group.value === 'auto')) {
           localGroupOptions.sort((a, b) => (a.value === 'auto' ? -1 : 1));
