@@ -23,10 +23,10 @@ import {
   parseTiersFromExpr,
   type ParsedTier,
 } from '@/features/pricing/lib/billing-expr'
-import type { UsageLog } from '../data/schema'
 import type { LogOtherData } from '../types'
 
 export { normalizeTierLabel }
+export { formatModelName, parseLogOther } from './model-format'
 
 const PARAM_OVERRIDE_ACTION_MAP: Record<string, string> = {
   set: 'Set',
@@ -92,20 +92,6 @@ export function isViolationFeeLog(other: LogOtherData | null): boolean {
 }
 
 /**
- * Parse the 'other' field from JSON string to object
- */
-export function parseLogOther(other: string): LogOtherData | null {
-  if (!other) return null
-  try {
-    return JSON.parse(other) as LogOtherData
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error('Failed to parse log other field:', error)
-    return null
-  }
-}
-
-/**
  * Get time color based on duration (in seconds)
  */
 export function getTimeColor(
@@ -147,28 +133,6 @@ export function getResponseTimeColor(
 ): 'success' | 'warning' | 'danger' {
   if (completionTokens < 100 || seconds <= 0) return getTimeColor(seconds)
   return getThroughputColor(completionTokens / seconds)
-}
-
-/**
- * Format model name with mapping indicator
- */
-export function formatModelName(log: UsageLog): {
-  name: string
-  isMapped: boolean
-  actualModel?: string
-} {
-  const other = parseLogOther(log.other)
-  const isMapped = !!(
-    other?.is_model_mapped &&
-    other?.upstream_model_name &&
-    other.upstream_model_name !== ''
-  )
-
-  return {
-    name: log.model_name,
-    isMapped,
-    actualModel: isMapped ? other.upstream_model_name : undefined,
-  }
 }
 
 /**

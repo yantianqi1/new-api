@@ -43,7 +43,7 @@ func TestFormatUserLogsHidesUpstreamModelWhenEnabled(t *testing.T) {
 	assert.Equal(t, "/v1/chat/completions", other["request_path"])
 }
 
-func TestFormatUserLogsKeepsUpstreamModelWhenDisabled(t *testing.T) {
+func TestFormatUserLogsAlwaysHidesUpstreamModelFromUsers(t *testing.T) {
 	original := common.HideUserLogUpstreamModelEnabled
 	t.Cleanup(func() {
 		common.HideUserLogUpstreamModelEnabled = original
@@ -64,8 +64,8 @@ func TestFormatUserLogsKeepsUpstreamModelWhenDisabled(t *testing.T) {
 
 	other, err := common.StrToMap(logs[0].Other)
 	require.NoError(t, err)
-	assert.Equal(t, true, other["is_model_mapped"])
-	assert.Equal(t, "secret-upstream-model", other["upstream_model_name"])
+	assert.NotContains(t, other, "is_model_mapped")
+	assert.NotContains(t, other, "upstream_model_name")
 }
 
 func TestTaskGetAllUserTaskHidesUpstreamModelWhenEnabled(t *testing.T) {
@@ -86,6 +86,30 @@ func TestTaskGetAllUserTaskHidesUpstreamModelWhenEnabled(t *testing.T) {
 	}).Error)
 
 	tasks := TaskGetAllUserTask(903, 0, 10, SyncTaskQueryParams{})
+
+	require.Len(t, tasks, 1)
+	assert.Equal(t, "public-alias-model", tasks[0].Properties.OriginModelName)
+	assert.Empty(t, tasks[0].Properties.UpstreamModelName)
+}
+
+func TestTaskGetAllUserTaskAlwaysHidesUpstreamModelFromUsers(t *testing.T) {
+	truncateTables(t)
+	original := common.HideUserLogUpstreamModelEnabled
+	t.Cleanup(func() {
+		common.HideUserLogUpstreamModelEnabled = original
+	})
+	common.HideUserLogUpstreamModelEnabled = false
+
+	require.NoError(t, DB.Create(&Task{
+		TaskID: "task_public_always_hidden",
+		UserId: 905,
+		Properties: Properties{
+			OriginModelName:   "public-alias-model",
+			UpstreamModelName: "secret-upstream-model",
+		},
+	}).Error)
+
+	tasks := TaskGetAllUserTask(905, 0, 10, SyncTaskQueryParams{})
 
 	require.Len(t, tasks, 1)
 	assert.Equal(t, "public-alias-model", tasks[0].Properties.OriginModelName)

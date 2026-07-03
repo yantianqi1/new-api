@@ -240,10 +240,8 @@ func TaskGetAllUserTask(userId int, startIdx int, num int, queryParams SyncTaskQ
 	if err != nil {
 		return nil
 	}
-	if common.HideUserLogUpstreamModelEnabled {
-		for _, task := range tasks {
-			task.Properties.UpstreamModelName = ""
-		}
+	for _, task := range tasks {
+		task.Properties.UpstreamModelName = ""
 	}
 
 	return tasks
