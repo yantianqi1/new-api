@@ -23,7 +23,6 @@ import {
   Space,
   Tag,
   Tooltip,
-  Progress,
   Popover,
   Typography,
   Dropdown,
@@ -144,7 +143,9 @@ const renderStatistics = (text, record, showEnableDisableModal, t) => {
 const renderQuotaUsage = (text, record, t) => {
   const { Paragraph } = Typography;
   const used = parseInt(record.used_quota) || 0;
-  const remain = parseInt(record.quota) || 0;
+  const paidRemain = parseInt(record.quota) || 0;
+  const bonusRemain = parseInt(record.bonus_quota) || 0;
+  const remain = paidRemain + bonusRemain;
   const total = used + remain;
   const percent = total > 0 ? (remain / total) * 100 : 0;
   const popoverContent = (
@@ -155,6 +156,12 @@ const renderQuotaUsage = (text, record, t) => {
       <Paragraph copyable={{ content: renderQuota(remain) }}>
         {t('剩余额度')}: {renderQuota(remain)} ({percent.toFixed(0)}%)
       </Paragraph>
+      <Paragraph copyable={{ content: renderQuota(paidRemain) }}>
+        {t('付费余额')}: {renderQuota(paidRemain)}
+      </Paragraph>
+      <Paragraph copyable={{ content: renderQuota(bonusRemain) }}>
+        {t('免费积分')}: {renderQuota(bonusRemain)}
+      </Paragraph>
       <Paragraph copyable={{ content: renderQuota(total) }}>
         {t('总额度')}: {renderQuota(total)}
       </Paragraph>
@@ -162,15 +169,24 @@ const renderQuotaUsage = (text, record, t) => {
   );
   return (
     <Popover content={popoverContent} position='top'>
-      <Tag color='white' shape='circle'>
-        <div className='flex flex-col items-end'>
-          <span className='text-xs leading-none'>{`${renderQuota(remain)} / ${renderQuota(total)}`}</span>
-          <Progress
-            percent={percent}
-            aria-label='quota usage'
-            format={() => `${percent.toFixed(0)}%`}
-            style={{ width: '100%', marginTop: '1px', marginBottom: 0 }}
-          />
+      <Tag
+        color='white'
+        shape='circle'
+        className='!h-8 !px-2 !py-0'
+        title={`${t('免费积分')}: ${renderQuota(bonusRemain)} · ${t('付费余额')}: ${renderQuota(paidRemain)} · ${t('剩余额度')}: ${renderQuota(remain)}`}
+      >
+        <div className='flex h-full items-center justify-center text-xs font-medium leading-none'>
+          <span className='min-w-[36px] text-center text-emerald-600'>
+            {renderQuota(bonusRemain)}
+          </span>
+          <span className='mx-0.5 h-3 w-px bg-gray-200' />
+          <span className='min-w-[36px] text-center text-sky-600'>
+            {renderQuota(paidRemain)}
+          </span>
+          <span className='mx-0.5 h-3 w-px bg-gray-200' />
+          <span className='min-w-[36px] text-center text-gray-900'>
+            {renderQuota(remain)}
+          </span>
         </div>
       </Tag>
     </Popover>
@@ -334,8 +350,9 @@ export const getUsersColumns = ({
         renderStatistics(text, record, showEnableDisableModal, t),
     },
     {
-      title: t('剩余额度/总额度'),
+      title: `${t('免费积分')}/${t('付费余额')}/${t('剩余额度')}`,
       key: 'quota_usage',
+      width: 165,
       render: (text, record) => renderQuotaUsage(text, record, t),
     },
     {

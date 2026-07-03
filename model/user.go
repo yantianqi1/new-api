@@ -374,7 +374,7 @@ func (user *User) TransferAffQuotaToQuota(quota int) error {
 
 	// 更新用户额度
 	user.AffQuota -= quota
-	user.Quota += quota
+	user.BonusQuota += quota
 
 	// 保存用户状态
 	if err := tx.Save(user).Error; err != nil {
@@ -382,7 +382,15 @@ func (user *User) TransferAffQuotaToQuota(quota int) error {
 	}
 
 	// 提交事务
-	return tx.Commit().Error
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+	gopool.Go(func() {
+		if err := cacheIncrUserBonusQuota(user.Id, int64(quota)); err != nil {
+			common.SysLog("failed to increase user bonus quota after affiliate transfer: " + err.Error())
+		}
+	})
+	return nil
 }
 
 func (user *User) Insert(inviterId int) error {
@@ -430,8 +438,8 @@ func (user *User) Insert(inviterId int) error {
 	}
 	if inviterId != 0 && operation_setting.IsPaymentComplianceConfirmed() {
 		if common.QuotaForInvitee > 0 {
-			_ = IncreaseUserQuota(user.Id, common.QuotaForInvitee, true)
-			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
+			_ = IncreaseUserBonusQuota(user.Id, common.QuotaForInvitee, true)
+			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送积分额度 %s", logger.LogQuota(common.QuotaForInvitee)))
 		}
 		if common.QuotaForInviter > 0 {
 			//_ = IncreaseUserQuota(inviterId, common.QuotaForInviter)
@@ -492,8 +500,8 @@ func (user *User) FinalizeOAuthUserCreation(inviterId int) {
 	}
 	if inviterId != 0 && operation_setting.IsPaymentComplianceConfirmed() {
 		if common.QuotaForInvitee > 0 {
-			_ = IncreaseUserQuota(user.Id, common.QuotaForInvitee, true)
-			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
+			_ = IncreaseUserBonusQuota(user.Id, common.QuotaForInvitee, true)
+			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送积分额度 %s", logger.LogQuota(common.QuotaForInvitee)))
 		}
 		if common.QuotaForInviter > 0 {
 			RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
