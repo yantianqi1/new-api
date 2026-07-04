@@ -3856,6 +3856,8 @@
     "更简单的大模型 API 中转服务": "A simpler LLM API relay service",
     "统一接入多家模型供应商，兼容主流 API 格式，把密钥、额度和用量管理集中到一个入口。": "Connect multiple model providers through one entry, keep common API formats compatible, and centralize keys, quota, and usage.",
     "开始使用": "Get started",
+    "公益云酒馆 / SillyTavern / 角色扮演": "Community Cloud Tavern / SillyTavern / Roleplay",
+    "一句话/一个故事，生成一张高可玩性角色卡": "One sentence or story, generate a highly playable character card",
     "查看文档": "View docs",
     "当前 Base URL": "Current Base URL",
     "复制 Base URL": "Copy Base URL",

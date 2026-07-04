@@ -4244,6 +4244,8 @@
     "更简单的大模型 API 中转服务": "Dịch vụ trung chuyển API LLM đơn giản hơn",
     "统一接入多家模型供应商，兼容主流 API 格式，把密钥、额度和用量管理集中到一个入口。": "Kết nối nhiều nhà cung cấp mô hình qua một cổng, tương thích các định dạng API phổ biến và tập trung quản lý khóa, hạn mức, mức sử dụng.",
     "开始使用": "Bắt đầu",
+    "公益云酒馆 / SillyTavern / 角色扮演": "Quán rượu đám mây cộng đồng / SillyTavern / Nhập vai",
+    "一句话/一个故事，生成一张高可玩性角色卡": "Một câu hoặc một câu chuyện để tạo thẻ nhân vật giàu tính chơi",
     "查看文档": "Xem tài liệu",
     "当前 Base URL": "Base URL hiện tại",
     "复制 Base URL": "Sao chép Base URL",

@@ -38,7 +38,7 @@ import homeHeroBackground from '../../assets/home-hero-background.png';
 import {
   IconGithubLogo,
   IconPlay,
-  IconFile,
+  IconExternalOpen,
   IconCopy,
   IconKey,
 } from '@douyinfe/semi-icons';
@@ -56,8 +56,9 @@ const Home = () => {
   const [noticeVisible, setNoticeVisible] = useState(false);
   const isMobile = useIsMobile();
   const isDemoSiteMode = statusState?.status?.demo_site_enabled || false;
-  const docsLink = statusState?.status?.docs_link || '';
   const serverAddress = window.location.origin;
+  const sillyTavernUrl = 'https://st.aiwanai.cc';
+  const roleCardUrl = 'https://card.aiwanai.cc';
   const endpointItems = API_ENDPOINTS.map((e) => ({ value: e }));
   const [endpointIndex, setEndpointIndex] = useState(0);
   const isChinese = i18n.language.startsWith('zh');
@@ -205,9 +206,6 @@ ${quotaResponseExample}
           >
             <div className='classic-home-shell classic-home-hero-grid'>
               <section className='classic-home-hero-copy'>
-                <div className='classic-home-eyebrow'>
-                  {t('大模型 API 中转站')}
-                </div>
                 <h1
                   className={`classic-home-title classic-home-title-art ${isChinese ? 'classic-home-title-zh' : ''}`}
                 >
@@ -230,7 +228,7 @@ ${quotaResponseExample}
                       {t('开始使用')}
                     </Button>
                   </Link>
-                  {isDemoSiteMode && statusState?.status?.version ? (
+                  {isDemoSiteMode && statusState?.status?.version && (
                     <Button
                       size={isMobile ? 'default' : 'large'}
                       className='classic-home-secondary-button'
@@ -244,18 +242,29 @@ ${quotaResponseExample}
                     >
                       {statusState.status.version}
                     </Button>
-                  ) : (
-                    docsLink && (
-                      <Button
-                        size={isMobile ? 'default' : 'large'}
-                        className='classic-home-secondary-button'
-                        icon={<IconFile />}
-                        onClick={() => window.open(docsLink, '_blank')}
-                      >
-                        {t('查看文档')}
-                      </Button>
-                    )
                   )}
+                  <Button
+                    size={isMobile ? 'default' : 'large'}
+                    className='classic-home-tavern-button'
+                    icon={<IconExternalOpen />}
+                    onClick={() =>
+                      window.open(sillyTavernUrl, '_blank', 'noopener,noreferrer')
+                    }
+                  >
+                    {t('公益云酒馆 / SillyTavern / 角色扮演')}
+                  </Button>
+                  <div className='classic-home-card-action-row'>
+                    <Button
+                      size={isMobile ? 'default' : 'large'}
+                      className='classic-home-tavern-button classic-home-card-button'
+                      icon={<IconExternalOpen />}
+                      onClick={() =>
+                        window.open(roleCardUrl, '_blank', 'noopener,noreferrer')
+                      }
+                    >
+                      {t('一句话/一个故事，生成一张高可玩性角色卡')}
+                    </Button>
+                  </div>
                 </div>
                 <div className='classic-home-base-block'>
                   <Text className='classic-home-base-label'>

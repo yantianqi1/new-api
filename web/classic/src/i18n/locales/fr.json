@@ -3710,6 +3710,8 @@
     "更简单的大模型 API 中转服务": "Un service relais API LLM plus simple",
     "统一接入多家模型供应商，兼容主流 API 格式，把密钥、额度和用量管理集中到一个入口。": "Connectez plusieurs fournisseurs de modèles via une seule entrée, avec compatibilité des formats API courants et gestion centralisée des clés, quotas et usages.",
     "开始使用": "Commencer",
+    "公益云酒馆 / SillyTavern / 角色扮演": "Taverne cloud communautaire / SillyTavern / Jeu de rôle",
+    "一句话/一个故事，生成一张高可玩性角色卡": "Une phrase ou une histoire pour générer une carte de personnage très jouable",
     "查看文档": "Voir la documentation",
     "当前 Base URL": "Base URL actuelle",
     "复制 Base URL": "Copier la Base URL",
