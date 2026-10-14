@@ -41,6 +41,7 @@ import { CopyButton } from '@/components/copy-button'
 
 import ActivityShowcase from './activity-showcase'
 import DeveloperSection from './developer-section'
+import HeroModelSquare from './hero-model-square'
 
 import '../../waner-home.css'
 
@@ -235,7 +236,7 @@ export default function WanerLanding({
             </div>
           </div>
 
-          {/* Right Column: Hero Visual Artwork & Interactive Model Square Hotspots */}
+          {/* Right Column: Hero Visual Artwork & Live Model Square */}
           <div className='waner-hero-visual'>
             <div className='waner-visual-container'>
               <img
@@ -248,33 +249,7 @@ export default function WanerLanding({
                 }}
               />
 
-              {/* Hotspots: Header */}
-              <Link
-                to='/pricing'
-                className='waner-model-hotspot waner-hotspot-header'
-                aria-label={t('Model Square')}
-                title='模型广场'
-              />
-
-              {/* Hotspots: Top Models */}
-              {['GPT-4o', 'Claude 3.5', 'Gemini 1.5', 'DeepSeek', 'Qwen'].map(
-                (modelName, idx) => (
-                  <Link
-                    key={modelName}
-                    to='/pricing'
-                    className={`waner-model-hotspot waner-hotspot-item waner-item-${idx}`}
-                    title={modelName}
-                  />
-                )
-              )}
-
-              {/* Hotspots: Footer */}
-              <Link
-                to='/pricing'
-                className='waner-model-hotspot waner-hotspot-footer'
-                aria-label={t('View all models')}
-                title='查看全部模型'
-              />
+              <HeroModelSquare />
             </div>
           </div>
         </div>

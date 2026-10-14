@@ -2540,6 +2540,7 @@ body:has(.home-v2) .semi-layout-footer footer > .absolute {
 
 .waner-visual-container {
   position: relative;
+  container-type: inline-size;
   width: 100%;
   max-width: 740px;
   border-radius: 20px;
@@ -2552,70 +2553,97 @@ body:has(.home-v2) .semi-layout-footer footer > .absolute {
   border-radius: 20px;
 }
 
-/* Hotspots on top of Model Square Card */
-.waner-model-hotspot {
+/* Keep the model names live while preserving the original mascot artwork. */
+.waner-hero-model-square {
   position: absolute;
-  z-index: 10;
-  cursor: pointer;
-  border-radius: 8px;
+  z-index: 2;
+  top: 4.5%;
+  left: 44%;
+  width: 31%;
+  height: 65%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #f0e1d0;
+  border-radius: 2.8cqw;
+  background: #fffdfa;
+  box-shadow: 0 1cqw 3cqw rgb(124 76 32 / 12%);
+  color: #43352d;
+  font-size: 1.85cqw;
+}
+.waner-hero-model-heading,
+.waner-hero-model-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  gap: 0.8cqw;
+  padding: 1.4cqw 1.8cqw;
+  font-weight: 700;
+  line-height: 1.3;
   text-decoration: none;
-  transition: background 0.18s ease;
 }
-
-.waner-model-hotspot:hover {
-  background: rgba(255, 255, 255, 0.35);
-  box-shadow: 0 0 16px rgba(255, 255, 255, 0.5);
+.waner-hero-model-heading {
+  background: #f8f1e8;
 }
-
-.waner-hotspot-header {
-  top: 1%;
-  left: 42.8%;
-  width: 30.4%;
-  height: 14%;
-  border-radius: 16px 16px 4px 4px;
+.waner-hero-model-heading svg,
+.waner-hero-model-footer svg {
+  width: 2cqw;
+  height: 2cqw;
+  flex-shrink: 0;
 }
-
-.waner-item-0 {
-  top: 15%;
-  left: 42.8%;
-  width: 30.4%;
-  height: 11%;
+.waner-hero-model-list {
+  display: grid;
+  grid-template-rows: repeat(5, minmax(0, 1fr));
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0 1cqw;
+  list-style: none;
 }
-
-.waner-item-1 {
-  top: 26%;
-  left: 42.8%;
-  width: 30.4%;
-  height: 11%;
+.waner-hero-model-list li + li {
+  border-top: 1px solid #f3ede7;
 }
-
-.waner-item-2 {
-  top: 37%;
-  left: 42.8%;
-  width: 30.4%;
-  height: 11%;
+.waner-hero-model-link {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  gap: 1cqw;
+  align-items: center;
+  padding: 0.5cqw 0.6cqw;
+  text-decoration: none;
+  border-radius: 1cqw;
 }
-
-.waner-item-3 {
-  top: 48%;
-  left: 42.8%;
-  width: 30.4%;
-  height: 11%;
+.waner-hero-model-icon {
+  width: 3.6cqw;
+  height: 3.6cqw;
+  flex-shrink: 0;
 }
-
-.waner-item-4 {
-  top: 59%;
-  left: 42.8%;
-  width: 30.4%;
-  height: 11%;
+.waner-hero-model-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.25cqw;
+  line-height: 1.25;
 }
-
-.waner-hotspot-footer {
-  top: 70%;
-  left: 42.8%;
-  width: 30.4%;
-  height: 8%;
-  border-radius: 4px 4px 16px 16px;
+.waner-hero-model-copy strong {
+  font-size: 1.8cqw;
+  font-weight: 650;
+}
+.waner-hero-model-copy > span {
+  color: #857369;
+  font-size: 1.4cqw;
+}
+.waner-hero-model-footer {
+  color: #4c70ca;
+  font-size: 1.7cqw;
+}
+.waner-hero-model-square a:hover {
+  background: #f4eee6;
+}
+.waner-hero-model-square a:focus-visible {
+  outline: 2px solid #4c70ca;
+  outline-offset: -2px;
 }
 
 /* ── 2. Features Section ──────────────────────────────────────────── */

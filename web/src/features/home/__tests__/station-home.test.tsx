@@ -63,3 +63,23 @@ test('the default integration prompt uses English source text and the configured
   expect(prompt).toHaveTextContent('total_available (remaining quota)')
   expect(prompt).not.toHaveTextContent('请帮我')
 })
+
+test('current hero model names link to the public pricing page', () => {
+  render(<Home />)
+  for (const name of [
+    'GPT-6',
+    'Claude Opus 5.5',
+    'Gemini 4',
+    'DeepSeek V4.1 Flash',
+    'Qwen 3.8-Max',
+  ]) {
+    const modelLink = screen.getByRole('link', {
+      name: new RegExp(name.replaceAll('.', '\\.')),
+    })
+    expect(modelLink).toBeVisible()
+    expect(modelLink).toHaveAttribute('href', '/pricing')
+  }
+  expect(
+    screen.queryByRole('link', { name: /GPT-4o|Claude 3\.5|Gemini 1\.5/ })
+  ).not.toBeInTheDocument()
+})
