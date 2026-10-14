@@ -29,6 +29,9 @@ import type { UpdateOptionRequest, UpdatePasskeyDomainsRequest } from '../types'
 // Configuration keys that require status refresh
 const STATUS_RELATED_KEYS = new Set([
   'HeaderNavModules',
+  'general_setting.model_square_link',
+  'console_setting.activity_bar_enabled',
+  'console_setting.activity_bar_items',
   'SidebarModulesAdmin',
   'Notice',
   'LogConsumeEnabled',

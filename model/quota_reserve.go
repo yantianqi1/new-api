@@ -237,3 +237,162 @@ func TryReserveTokenQuota(id int, key string, quota int, unlimited bool) (bool, 
 	}
 	return true, nil
 }
+
+// TryReserveUserBonusAndPaidQuota reserves promotional credit first for eligible
+// models, then paid credit, in one operation. A cache hit is authoritative even
+// when older paid-wallet deductions are still waiting in the batch queue.
+func TryReserveUserBonusAndPaidQuota(id, quota int, allowBonus bool) (bonus, paid int, ok bool, err error) {
+	return reserveUserBonusAndPaidQuota(id, quota, allowBonus, nil)
+}
+
+// reserveUserBonusAndPaidQuota may commit a durable billing snapshot in the
+// same transaction as the wallet deduction, after its atomic cache reservation.
+func reserveUserBonusAndPaidQuota(id, quota int, allowBonus bool, persist func(*gorm.DB, int, int) error) (bonus, paid int, ok bool, err error) {
+	if quota < 0 {
+		return 0, 0, false, errors.New("quota cannot be negative")
+	}
+	if err := common.ValidateWalletQuota(quota); err != nil {
+		return 0, 0, false, err
+	}
+	if quota == 0 {
+		return 0, 0, true, nil
+	}
+	if !allowBonus {
+		ok, err := TryReserveUserQuota(id, quota)
+		if !ok {
+			return 0, 0, false, err
+		}
+		return 0, quota, true, nil
+	}
+	if common.RedisEnabled {
+		const script = `
+if tonumber(redis.call('HGET', KEYS[1], 'Id') or '0') ~= tonumber(ARGV[2])
+ or tonumber(redis.call('HGET', KEYS[1], 'CacheSchema') or '0') ~= tonumber(ARGV[3])
+ or redis.call('HEXISTS', KEYS[1], 'Quota') == 0
+ or redis.call('HEXISTS', KEYS[1], 'BonusQuota') == 0 then return {-1, 0, 0} end
+local paid = tonumber(redis.call('HGET', KEYS[1], 'Quota'))
+local bonus = tonumber(redis.call('HGET', KEYS[1], 'BonusQuota'))
+local amount = tonumber(ARGV[1])
+if paid == nil or bonus == nil then return {-1, 0, 0} end
+local bonusSpend = math.min(math.max(bonus, 0), amount)
+local paidSpend = amount - bonusSpend
+if paid < amount - math.max(bonus, 0) then return {0, 0, 0} end
+redis.call('HINCRBY', KEYS[1], 'BonusQuota', -bonusSpend)
+redis.call('HINCRBY', KEYS[1], 'Quota', -paidSpend)
+return {1, bonusSpend, paidSpend}`
+		for attempt := range 2 {
+			values, cacheErr := common.RDB.Eval(context.Background(), script, []string{getUserCacheKey(id)}, quota, id, userCacheSchemaVersion).Int64Slice()
+			if cacheErr != nil {
+				common.SysLog(common.LogText("mixed wallet reserve cache unavailable: %s", cacheErr.Error()))
+				break
+			}
+			if len(values) != 3 {
+				break
+			}
+			if values[0] == 0 {
+				return 0, 0, false, nil
+			}
+			if values[0] == -1 {
+				if attempt == 0 {
+					if _, hydrateErr := GetUserCache(id); hydrateErr == nil {
+						continue
+					}
+				}
+				break
+			}
+			bonus, paid = int(values[1]), int(values[2])
+			err = DB.Transaction(func(tx *gorm.DB) error {
+				result := tx.Model(&User{}).Where("id = ?", id).Updates(map[string]any{"bonus_quota": gorm.Expr("bonus_quota - ?", bonus), "quota": gorm.Expr("quota - ?", paid)})
+				if result.Error != nil {
+					return result.Error
+				}
+				if result.RowsAffected != 1 {
+					return gorm.ErrRecordNotFound
+				}
+				if persist != nil {
+					return persist(tx, bonus, paid)
+				}
+				return nil
+			})
+			if err != nil {
+				if refundErr := cacheApplyUserWalletDelta(id, int64(bonus), int64(paid)); refundErr != nil {
+					common.SysError(common.LogText("failed to compensate mixed wallet reservation: %s", refundErr.Error()))
+				}
+				return 0, 0, false, err
+			}
+			return bonus, paid, true, nil
+		}
+	}
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		var user User
+		if err := lockForUpdate(tx).Select("id", "bonus_quota", "quota").First(&user, id).Error; err != nil {
+			return err
+		}
+		bonus = min(max(user.BonusQuota, 0), quota)
+		paid = quota - bonus
+		if user.Quota < quota-max(user.BonusQuota, 0) {
+			bonus, paid = 0, 0
+			return nil
+		}
+		result := tx.Model(&User{}).Where("id = ? AND bonus_quota = ? AND quota = ?", id, user.BonusQuota, user.Quota).Updates(map[string]any{"bonus_quota": gorm.Expr("bonus_quota - ?", bonus), "quota": gorm.Expr("quota - ?", paid)})
+		if result.Error != nil {
+			return result.Error
+		}
+		ok = result.RowsAffected == 1
+		if !ok {
+			bonus, paid = 0, 0
+			return nil
+		}
+		if persist != nil {
+			return persist(tx, bonus, paid)
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, 0, false, err
+	}
+	return bonus, paid, ok, err
+}
+
+// RefundUserBonusAndPaidQuota restores each wallet to the source of its
+// reservation; atomic ceiling checks prevent partially credited refunds.
+func RefundUserBonusAndPaidQuota(id, bonus, paid int) error {
+	if bonus < 0 || paid < 0 {
+		return errors.New("quota cannot be negative")
+	}
+	if err := common.ValidateWalletQuota(bonus); err != nil {
+		return err
+	}
+	if err := common.ValidateWalletQuota(paid); err != nil {
+		return err
+	}
+	if bonus == 0 && paid == 0 {
+		return nil
+	}
+	result := DB.Model(&User{}).Where("id = ? AND bonus_quota <= ? AND quota <= ?", id, common.MaxWalletQuota-bonus, common.MaxWalletQuota-paid).Updates(map[string]any{"bonus_quota": gorm.Expr("bonus_quota + ?", bonus), "quota": gorm.Expr("quota + ?", paid)})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return ErrWalletQuotaLimitExceeded
+	}
+	if err := cacheApplyUserWalletDelta(id, int64(bonus), int64(paid)); err != nil {
+		common.SysError(common.LogText("failed to sync mixed wallet refund: %s", err.Error()))
+	}
+	return nil
+}
+
+func cacheApplyUserWalletDelta(id int, bonus, paid int64) error {
+	if !common.RedisEnabled {
+		return nil
+	}
+	const script = `
+if tonumber(redis.call('HGET', KEYS[1], 'Id') or '0') ~= tonumber(ARGV[3])
+ or tonumber(redis.call('HGET', KEYS[1], 'CacheSchema') or '0') ~= tonumber(ARGV[4])
+ or redis.call('HEXISTS', KEYS[1], 'Quota') == 0
+ or redis.call('HEXISTS', KEYS[1], 'BonusQuota') == 0 then return -1 end
+redis.call('HINCRBY', KEYS[1], 'BonusQuota', ARGV[1])
+redis.call('HINCRBY', KEYS[1], 'Quota', ARGV[2])
+return 1`
+	return common.RDB.Eval(context.Background(), script, []string{getUserCacheKey(id)}, bonus, paid, id, userCacheSchemaVersion).Err()
+}

@@ -24,10 +24,11 @@ import {
   normalizeAdminPermissions,
 } from '@/lib/admin-permissions'
 import { quotaUnitsToDollars } from '@/lib/format'
+import { isValidModelRpmMap, serializeModelRpmMap } from '@/lib/rate-limit'
 import { ROLE } from '@/lib/roles'
 
 import { DEFAULT_GROUP } from '../constants'
-import { type UserFormData, type User } from '../types'
+import type { UserFormData, User } from '../types'
 
 // ============================================================================
 // Form Schema
@@ -41,6 +42,15 @@ export const userFormSchema = z.object({
   quota_dollars: z.number().min(0).optional(),
   group: z.string().optional(),
   remark: z.string().optional(),
+  // 免费积分模型 RPM 覆盖值：undefined 表示继承全局默认，0 表示该用户不限
+  bonus_quota_model_rpm: z.number().int().min(0).optional(),
+  // 按模型的免费积分模型 RPM 覆盖表，表单里是 JSON 文本，空串表示不覆盖
+  bonus_quota_model_rpm_by_model: z
+    .string()
+    .optional()
+    .refine(isValidModelRpmMap, {
+      message: 'Invalid JSON format or values out of allowed range',
+    }),
   admin_permissions: z
     .record(z.string(), z.record(z.string(), z.boolean()))
     .optional(),
@@ -60,6 +70,8 @@ export const USER_FORM_DEFAULT_VALUES: UserFormValues = {
   quota_dollars: 0,
   group: DEFAULT_GROUP,
   remark: '',
+  bonus_quota_model_rpm: undefined,
+  bonus_quota_model_rpm_by_model: '',
   // Filled against the backend catalog at render time; see UsersMutateDrawer.
   admin_permissions: {},
 }
@@ -108,6 +120,34 @@ export function transformFormDataToPayload(
 }
 
 /**
+ * 从用户 setting JSON 中读出免费积分模型 RPM 覆盖值。
+ * 返回 undefined 表示该用户没有覆盖，运行时回落到全局默认设置。
+ */
+function parseBonusQuotaModelRpm(setting?: string): number | undefined {
+  if (!setting) return undefined
+  try {
+    const value = JSON.parse(setting)?.bonus_quota_model_rpm
+    return typeof value === 'number' ? value : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * 把用户 setting JSON 里的按模型 RPM 覆盖表转成表单用的 JSON 文本。
+ */
+function parseBonusQuotaModelRpmByModel(setting?: string): string {
+  if (!setting) return ''
+  try {
+    return serializeModelRpmMap(
+      JSON.parse(setting)?.bonus_quota_model_rpm_by_model
+    )
+  } catch {
+    return ''
+  }
+}
+
+/**
  * Transform user data to form defaults. The admin permission matrix is passed
  * through as-is (the backend already returns a full matrix); it is filled against
  * the catalog at render time in UsersMutateDrawer.
@@ -121,6 +161,10 @@ export function transformUserToFormDefaults(user: User): UserFormValues {
     quota_dollars: quotaUnitsToDollars(user.quota),
     group: user.group || DEFAULT_GROUP,
     remark: user.remark || '',
+    bonus_quota_model_rpm: parseBonusQuotaModelRpm(user.setting),
+    bonus_quota_model_rpm_by_model: parseBonusQuotaModelRpmByModel(
+      user.setting
+    ),
     admin_permissions: user.admin_permissions ?? {},
   }
 }

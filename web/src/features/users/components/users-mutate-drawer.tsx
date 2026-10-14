@@ -83,6 +83,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import {
   createUser,
   updateUser,
+  updateUserBonusQuotaModelRpm,
   getUser,
   getGroups,
   getPermissionCatalog,
@@ -238,6 +239,20 @@ export function UsersMutateDrawer({
         : await createUser(payload, proofToken)
 
       if (result.success) {
+        if (isUpdate && currentRow) {
+          // 免费积分模型 RPM 覆盖值走独立接口，只改写 users.setting 里的字段。
+          // JSON 文本已由 zod 校验过格式，这里可以安全解析。
+          const byModelText = data.bonus_quota_model_rpm_by_model?.trim()
+          const limitResult = await updateUserBonusQuotaModelRpm(
+            currentRow.id,
+            data.bonus_quota_model_rpm ?? null,
+            byModelText ? JSON.parse(byModelText) : null
+          )
+          if (!limitResult.success) {
+            toast.error(limitResult.message || t(ERROR_MESSAGES.UPDATE_FAILED))
+            return
+          }
+        }
         toast.success(
           isUpdate
             ? t(SUCCESS_MESSAGES.USER_UPDATED)
@@ -471,6 +486,66 @@ export function UsersMutateDrawer({
                         </div>
                         <FormDescription>
                           {formatQuota(parseQuotaFromDollars(field.value || 0))}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='bonus_quota_model_rpm'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {t('Free-credit model RPM limit')}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            min={0}
+                            placeholder={t('Inherit global default')}
+                            {...field}
+                            value={field.value ?? ''}
+                            onChange={(e) =>
+                              field.onChange(
+                                e.target.value === ''
+                                  ? undefined
+                                  : Number(e.target.value)
+                              )
+                            }
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Applies only to models in the free-credit model list. Leave empty to inherit the global default; 0 = unlimited for this user.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='bonus_quota_model_rpm_by_model'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {t('Free-credit model RPM limit (per model)')}
+                        </FormLabel>
+                        <FormControl>
+                          <Textarea
+                            rows={3}
+                            className='font-mono text-sm'
+                            placeholder={`{\n  "frame": 3,\n  "free": 1\n}`}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            "JSON object mapping model name to this user's requests-per-minute override. Leave empty to inherit the global per-model limits; 0 = unlimited for that model."
+                          )}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>

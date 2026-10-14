@@ -298,6 +298,9 @@ func Register(c *gin.Context) {
 		common.ApiErrorT(c, "User registration failed or user ID retrieval failed")
 		return
 	}
+	if inviterId > 0 {
+		_, _ = model.TriggerBargainCut(inviterId, insertedUser.Id, c.ClientIP())
+	}
 	// 生成默认令牌
 	if constant.GenerateDefaultToken {
 		key, err := common.GenerateKey()
@@ -510,6 +513,7 @@ func buildSelfUserData(user *model.User) map[string]any {
 		"telegram_id":       user.TelegramId,
 		"group":             user.Group,
 		"quota":             user.Quota,
+		"bonus_quota":       user.BonusQuota,
 		"used_quota":        user.UsedQuota,
 		"request_count":     user.RequestCount,
 		"aff_code":          user.AffCode,
@@ -1430,6 +1434,8 @@ func UpdateUserSetting(c *gin.Context) {
 		UpstreamModelUpdateNotifyEnabled: upstreamModelUpdateNotifyEnabled,
 		AcceptUnsetRatioModel:            req.AcceptUnsetModelRatioModel,
 		RecordIpLog:                      req.RecordIpLog,
+		BonusQuotaModelRpm:               existingSettings.BonusQuotaModelRpm,
+		BonusQuotaModelRpmByModel:        existingSettings.BonusQuotaModelRpmByModel,
 	}
 
 	// 如果是webhook类型,添加webhook相关设置
@@ -1469,4 +1475,61 @@ func UpdateUserSetting(c *gin.Context) {
 	}
 
 	common.ApiSuccessT(c, "Settings updated", nil)
+}
+
+type UpdateUserBonusQuotaModelRpmRequest struct {
+	// BonusQuotaModelRpm 为 null 或缺省表示清除覆盖、回落到全局默认；0 表示该用户不限。
+	BonusQuotaModelRpm *int `json:"bonus_quota_model_rpm"`
+	// BonusQuotaModelRpmByModel 为 null 或缺省表示清除按模型覆盖。
+	// 缺 key 表示继承全局该模型的值，显式 0 表示该用户该模型不限。
+	BonusQuotaModelRpmByModel map[string]int `json:"bonus_quota_model_rpm_by_model"`
+}
+
+// UpdateUserBonusQuotaModelRpm 设置指定用户对免费积分模型（BonusQuotaModels 白名单）
+// 的每分钟请求数上限覆盖值：合计闸与按模型闸两个字段都全量权威，
+// 缺省或 null 一律表示清除该层覆盖。仅管理员可调用，且只能操作不高于自己等级的用户。
+func UpdateUserBonusQuotaModelRpm(c *gin.Context) {
+	userId, err := strconv.Atoi(c.Param("id"))
+	if err != nil || userId == 0 {
+		common.ApiErrorT(c, "Invalid parameters")
+		return
+	}
+	var req UpdateUserBonusQuotaModelRpmRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorT(c, "Invalid parameters")
+		return
+	}
+	if req.BonusQuotaModelRpm != nil && *req.BonusQuotaModelRpm < 0 {
+		common.ApiErrorT(c, "Invalid parameters")
+		return
+	}
+	if err := setting.CheckBonusQuotaModelRpmByModelMap(req.BonusQuotaModelRpmByModel); err != nil {
+		common.SysLog(fmt.Sprintf("invalid bonus quota model rpm by model for user %d: %s", userId, err.Error()))
+		common.ApiErrorT(c, "Invalid parameters")
+		return
+	}
+	user, err := model.GetUserById(userId, true)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if !canManageTargetRole(c.GetInt("role"), user.Role) {
+		common.ApiErrorT(c, "No permission to operate on users of the same or higher level")
+		return
+	}
+	settings := user.GetSetting()
+	settings.BonusQuotaModelRpm = req.BonusQuotaModelRpm
+	settings.BonusQuotaModelRpmByModel = req.BonusQuotaModelRpmByModel
+	if err := model.UpdateUserSetting(user.Id, settings); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	recordManageAuditFor(c, userId, "user.bonus_quota_model_rpm_update", map[string]any{
+		"bonus_quota_model_rpm":          req.BonusQuotaModelRpm,
+		"bonus_quota_model_rpm_by_model": req.BonusQuotaModelRpmByModel,
+	})
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+	})
 }

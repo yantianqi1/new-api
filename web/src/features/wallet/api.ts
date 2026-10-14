@@ -39,6 +39,12 @@ import type {
   WaffoPaymentResponse,
   WaffoPancakePaymentRequest,
   WaffoPancakePaymentResponse,
+  BargainInfo,
+  AffiliateCommissionSummary,
+  AffiliateCommissionRecord,
+  AffiliateCommissionTransferRecord,
+  AffiliateCommissionTransferRequest,
+  PaginatedData,
 } from './types'
 
 // ============================================================================
@@ -199,6 +205,40 @@ export async function transferAffiliateQuota(
   return res.data
 }
 
+export async function getAffiliateCommissionSummary(): Promise<
+  ApiResponse<AffiliateCommissionSummary>
+> {
+  const res = await api.get('/api/user/affiliate_commission/summary')
+  return res.data
+}
+
+export async function getAffiliateCommissionRecords(
+  page: number,
+  pageSize: number
+): Promise<ApiResponse<PaginatedData<AffiliateCommissionRecord>>> {
+  const res = await api.get('/api/user/affiliate_commission/records', {
+    params: { p: page, page_size: pageSize },
+  })
+  return res.data
+}
+
+export async function getAffiliateCommissionTransfers(
+  page: number,
+  pageSize: number
+): Promise<ApiResponse<PaginatedData<AffiliateCommissionTransferRecord>>> {
+  const res = await api.get('/api/user/affiliate_commission/transfers', {
+    params: { p: page, page_size: pageSize },
+  })
+  return res.data
+}
+
+export async function transferAffiliateCommission(
+  request: AffiliateCommissionTransferRequest
+): Promise<ApiResponse<AffiliateCommissionTransferRecord>> {
+  const res = await api.post('/api/user/affiliate_commission/transfer', request)
+  return res.data
+}
+
 /**
  * Get billing history for current user
  */
@@ -244,5 +284,21 @@ export async function completeOrder(
   request: CompleteOrderRequest
 ): Promise<ApiResponse> {
   const res = await api.post('/api/user/topup/complete', request)
+  return res.data
+}
+
+/**
+ * Get bargain activity info
+ */
+export async function getBargainInfo(): Promise<ApiResponse<BargainInfo>> {
+  const res = await api.get('/api/user/bargain')
+  return res.data
+}
+
+/**
+ * Start bargain activity
+ */
+export async function startBargainActivity(): Promise<ApiResponse<null>> {
+  const res = await api.post('/api/user/bargain/start')
   return res.data
 }

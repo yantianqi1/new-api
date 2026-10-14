@@ -267,3 +267,19 @@ export async function adminUnbindCustomOAuth(
   )
   return res.data
 }
+
+/**
+ * 设置用户的免费积分模型 RPM 上限覆盖值（合计闸与按模型闸两个字段都全量权威）。
+ * 传 null 表示清除该层覆盖；合计 0 表示该用户不限。
+ */
+export async function updateUserBonusQuotaModelRpm(
+  id: number,
+  total: number | null,
+  byModel: Record<string, number> | null
+): Promise<ApiResponse<Partial<User>>> {
+  const res = await api.put(`/api/user/${id}/bonus_quota_model_rpm`, {
+    bonus_quota_model_rpm: total,
+    bonus_quota_model_rpm_by_model: byModel,
+  })
+  return res.data
+}

@@ -34,6 +34,7 @@ import {
 } from '@/components/ui/tooltip'
 import { formatLogQuota } from '@/lib/format'
 
+import { getUsageCostDisplay } from '../lib/cost-display'
 import { hasToolSurcharge } from '../lib/format'
 import type { LogOtherData } from '../types'
 
@@ -85,6 +86,7 @@ export function LogCostDisplay(props: LogCostDisplayProps) {
   const quota = isSubscription
     ? (props.other?.subscription_consumed ?? props.quota)
     : props.quota
+  const quotaDisplay = getUsageCostDisplay(formatLogQuota(quota), props.other)
   let source: string | undefined
 
   // A log billed to a subscription always names its funding source: that
@@ -132,7 +134,20 @@ export function LogCostDisplay(props: LogCostDisplayProps) {
               <TooltipContent>{source}</TooltipContent>
             </Tooltip>
           ) : null}
-          <span className='whitespace-nowrap'>{formatLogQuota(quota)}</span>
+          {quotaDisplay.marker === 'free' && (
+            <Badge
+              variant='outline'
+              className='border-success/30 bg-success/10 text-success h-4 px-1.5 text-[10px] leading-none font-semibold'
+              aria-label={t('Free points')}
+              title={t('Free points')}
+            >
+              {t('free')}
+            </Badge>
+          )}
+          <span className='whitespace-nowrap'>
+            {quotaDisplay.prefix}
+            {quotaDisplay.amount}
+          </span>
         </StatusBadge>
         {showToolSurcharge ? <ToolSurchargeMarker /> : null}
       </div>

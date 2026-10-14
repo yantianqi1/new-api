@@ -124,6 +124,7 @@ const createModelSchema = (t: Translate) =>
     ImageRatio: createJsonStringField(t),
     AudioRatio: createJsonStringField(t),
     AudioCompletionRatio: createJsonStringField(t),
+    BonusQuotaModels: createJsonStringField(t),
     ExposeRatioEnabled: z.boolean(),
     BillingMode: createJsonStringField(t),
     BillingExpr: createJsonStringField(t),
@@ -190,6 +191,7 @@ export function RatioSettingsCard({
         ? {
             ...initialModelDefaults,
             ...pricingBaseline.options,
+            BonusQuotaModels: initialModelDefaults.BonusQuotaModels || '{}',
             BillingMode:
               pricingBaseline.options['billing_setting.billing_mode'],
             BillingExpr:
@@ -232,6 +234,7 @@ export function RatioSettingsCard({
     AudioCompletionRatio: normalizeJsonString(
       modelDefaults.AudioCompletionRatio
     ),
+    BonusQuotaModels: normalizeJsonString(modelDefaults.BonusQuotaModels),
     ExposeRatioEnabled: modelDefaults.ExposeRatioEnabled,
     BillingMode: normalizeJsonString(modelDefaults.BillingMode),
     BillingExpr: normalizeJsonString(modelDefaults.BillingExpr),
@@ -271,6 +274,7 @@ export function RatioSettingsCard({
       AudioCompletionRatio: formatJsonForTextarea(
         modelDefaults.AudioCompletionRatio
       ),
+      BonusQuotaModels: formatJsonForTextarea(modelDefaults.BonusQuotaModels),
       BillingMode: formatJsonForTextarea(modelDefaults.BillingMode),
       BillingExpr: formatJsonForTextarea(modelDefaults.BillingExpr),
       PluginBillingExpr: formatJsonForTextarea(modelDefaults.PluginBillingExpr),
@@ -305,6 +309,7 @@ export function RatioSettingsCard({
       AudioCompletionRatio: normalizeJsonString(
         modelDefaults.AudioCompletionRatio
       ),
+      BonusQuotaModels: normalizeJsonString(modelDefaults.BonusQuotaModels),
       ExposeRatioEnabled: modelDefaults.ExposeRatioEnabled,
       BillingMode: normalizeJsonString(modelDefaults.BillingMode),
       BillingExpr: normalizeJsonString(modelDefaults.BillingExpr),
@@ -324,6 +329,7 @@ export function RatioSettingsCard({
       AudioCompletionRatio: formatJsonForTextarea(
         modelDefaults.AudioCompletionRatio
       ),
+      BonusQuotaModels: formatJsonForTextarea(modelDefaults.BonusQuotaModels),
       BillingMode: formatJsonForTextarea(modelDefaults.BillingMode),
       BillingExpr: formatJsonForTextarea(modelDefaults.BillingExpr),
       PluginBillingExpr: formatJsonForTextarea(modelDefaults.PluginBillingExpr),
@@ -368,6 +374,7 @@ export function RatioSettingsCard({
         ImageRatio: normalizeJsonString(values.ImageRatio),
         AudioRatio: normalizeJsonString(values.AudioRatio),
         AudioCompletionRatio: normalizeJsonString(values.AudioCompletionRatio),
+        BonusQuotaModels: normalizeJsonString(values.BonusQuotaModels),
         ExposeRatioEnabled: values.ExposeRatioEnabled,
         BillingMode: normalizeJsonString(values.BillingMode),
         BillingExpr: normalizeJsonString(values.BillingExpr),
@@ -384,15 +391,26 @@ export function RatioSettingsCard({
         const visibilityChanged =
           normalized.ExposeRatioEnabled !==
           modelNormalizedDefaults.current.ExposeRatioEnabled
-        if (!changes.length && !visibilityChanged) {
+        const bonusQuotaChanged =
+          normalized.BonusQuotaModels !==
+          modelNormalizedDefaults.current.BonusQuotaModels
+        if (!changes.length && !visibilityChanged && !bonusQuotaChanged) {
           toast.info(t('No model price changes to save'))
           return
         }
-        await savePricing.mutateAsync(changes)
+        if (changes.length) {
+          await savePricing.mutateAsync(changes)
+        }
         if (visibilityChanged) {
           await updateOption.mutateAsync({
             key: 'ExposeRatioEnabled',
             value: normalized.ExposeRatioEnabled,
+          })
+        }
+        if (bonusQuotaChanged) {
+          await updateOption.mutateAsync({
+            key: 'BonusQuotaModels',
+            value: normalized.BonusQuotaModels,
           })
         }
         const refreshed = await pricingQuery.refetch()

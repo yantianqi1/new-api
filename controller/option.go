@@ -3,6 +3,7 @@ package controller
 import (
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"slices"
 	"sort"
@@ -45,6 +46,14 @@ func isPositiveOptionValue(value string) bool {
 	}
 	floatValue, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
 	return err == nil && floatValue > 0
+}
+
+func validateAffiliateCommissionRateBasisPoints(value string) (int, error) {
+	rate, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil || rate < 0 || rate > 10000 {
+		return 0, common.NewMessage("Commission rate must be an integer between 0 and 10000 basis points")
+	}
+	return rate, nil
 }
 
 func collectModelNamesFromOptionValue(raw string, modelNames map[string]struct{}) {
@@ -202,6 +211,94 @@ func UpdateOption(c *gin.Context) {
 			common.ApiErrorT(c, "Payment, redemption, subscription, and invitation reward features are disabled. The administrator must confirm compliance terms before enabling them.")
 			return
 		}
+	case "payment_setting.affiliate_commission_rate_basis_points":
+		rate, validateErr := validateAffiliateCommissionRateBasisPoints(option.Value.(string))
+		if validateErr != nil {
+			common.ApiError(c, validateErr)
+			return
+		}
+		if rate > 0 && !operation_setting.IsPaymentComplianceConfirmed() {
+			common.ApiErrorT(c, "Payment, redemption, subscription, and invitation reward features are disabled. The administrator must confirm compliance terms before enabling them.")
+			return
+		}
+	case "payment_setting.special_tiers":
+		valStr := option.Value.(string)
+		if strings.TrimSpace(valStr) != "" {
+			var tiers []operation_setting.SpecialTier
+			if err := common.UnmarshalJsonStr(valStr, &tiers); err != nil {
+				common.ApiErrorT(c, "Special recharge tiers must be a valid JSON array")
+				return
+			}
+			now := common.GetTimestamp()
+			for i, t := range tiers {
+				if t.Id == "" {
+					tiers[i].Id = fmt.Sprintf("tier_%d_%d", now, i)
+				}
+				if strings.TrimSpace(t.Name) == "" {
+					common.ApiErrorT(c, "Special tier name is required")
+					return
+				}
+				if t.Price < 0.01 || math.IsNaN(t.Price) || math.IsInf(t.Price, 0) {
+					common.ApiErrorT(c, "Special tier price must be at least 0.01")
+					return
+				}
+				if t.Quota <= 0 || t.Quota > common.MaxWalletQuota {
+					common.ApiErrorT(c, "Special tier bonus quota must be positive")
+					return
+				}
+				if t.UserLimit < 0 {
+					tiers[i].UserLimit = 0
+				}
+			}
+			updatedBytes, err := common.Marshal(tiers)
+			if err != nil {
+				common.ApiErrorT(c, "Failed to encode special recharge tiers")
+				return
+			}
+			option.Value = string(updatedBytes)
+		}
+	case "bargain_setting.origin_price":
+		val, err := strconv.ParseFloat(option.Value.(string), 64)
+		if err != nil || val < 0.01 || math.IsNaN(val) || math.IsInf(val, 0) {
+			common.ApiErrorT(c, "Original price must be at least 0.01")
+			return
+		}
+	case "bargain_setting.min_price":
+		val, err := strconv.ParseFloat(option.Value.(string), 64)
+		if err != nil || val < 0.01 || math.IsNaN(val) || math.IsInf(val, 0) {
+			common.ApiErrorT(c, "Minimum price must be at least 0.01")
+			return
+		}
+	case "bargain_setting.cut_amount":
+		val, err := strconv.ParseFloat(option.Value.(string), 64)
+		if err != nil || val <= 0 || math.IsNaN(val) || math.IsInf(val, 0) {
+			common.ApiErrorT(c, "Price reduction must be positive")
+			return
+		}
+	case "bargain_setting.max_slashes":
+		val, err := strconv.Atoi(option.Value.(string))
+		if err != nil || val < 1 {
+			common.ApiErrorT(c, "Maximum bargain referrals must be at least 1")
+			return
+		}
+	case "bargain_setting.quota":
+		val, err := strconv.ParseInt(option.Value.(string), 10, 64)
+		if err != nil || val <= 0 || val > common.MaxWalletQuota {
+			common.ApiErrorT(c, "Bargain bonus quota must be positive")
+			return
+		}
+	case "bargain_setting.user_limit":
+		val, err := strconv.Atoi(option.Value.(string))
+		if err != nil || val < 0 {
+			common.ApiErrorT(c, "User purchase limit cannot be negative")
+			return
+		}
+	case "bargain_setting.ip_limit_hours":
+		val, err := strconv.Atoi(option.Value.(string))
+		if err != nil || val < 0 {
+			common.ApiErrorT(c, "IP limit hours cannot be negative")
+			return
+		}
 	default:
 		if isPaymentComplianceOptionKey(option.Key) {
 			common.ApiErrorT(c, "Compliance confirmation fields cannot be changed through the general settings API")
@@ -312,6 +409,17 @@ func UpdateOption(c *gin.Context) {
 			common.ApiErrorT(c, "Failed to set the cache creation ratio: {{error}}", map[string]any{"error": err.Error()})
 			return
 		}
+	case "BonusQuotaModelRpmByModel":
+		if err = setting.CheckBonusQuotaModelRpmByModel(option.Value.(string)); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	case "BonusQuotaModelRpmLimit":
+		value, e := strconv.Atoi(option.Value.(string))
+		if e != nil || value < 0 {
+			common.ApiErrorT(c, "Promotional model RPM limit cannot be negative")
+			return
+		}
 	case "ModelRequestRateLimitGroup":
 		err = setting.CheckModelRequestRateLimitGroup(option.Value.(string))
 		if err != nil {
@@ -376,6 +484,11 @@ func UpdateOption(c *gin.Context) {
 				common.ApiError(c, err)
 				return
 			}
+		}
+	case "console_setting.activity_bar_items":
+		if err = console_setting.ValidateConsoleSettings(option.Value.(string), "ActivityBarItems"); err != nil {
+			common.ApiError(c, err)
+			return
 		}
 	case "console_setting.api_info":
 		err = console_setting.ValidateConsoleSettings(option.Value.(string), "ApiInfo")

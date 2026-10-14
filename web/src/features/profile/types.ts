@@ -51,6 +51,8 @@ export interface UserProfile {
   group: string
   /** Current quota balance */
   quota: number
+  /** Bonus quota balance (points) */
+  bonus_quota?: number
   /** Total used quota */
   used_quota: number
   /** Total request count */

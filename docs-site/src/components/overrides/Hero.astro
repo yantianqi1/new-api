@@ -1,0 +1,383 @@
+---
+/**
+ * 自定义 Hero —— 首页视觉中心
+ * 继承品牌渐变与系统字体；窄屏必须能折行，复制按钮不能被裁掉。
+ */
+const PAGE_TITLE_ID = '_top';
+
+const { data } = Astro.locals.starlightRoute.entry;
+const { title = data.title, tagline, actions = [] } = data.hero || {};
+const lang = Astro.locals.starlightRoute?.lang || 'zh-CN';
+const isZh = !lang.startsWith('en');
+
+const badge = isZh ? 'OpenAI · Anthropic · Gemini 协议兼容' : 'OpenAI · Anthropic · Gemini compatible';
+const terminalTitle = isZh ? '你的第一个请求' : 'Your first request';
+const copied = isZh ? '已复制' : 'Copied';
+const copyLabel = isZh ? '复制' : 'Copy';
+const hint = isZh
+  ? '把 Base URL 指向本站，用控制台签发的 sk- 密钥即可调用模型'
+  : 'Point your Base URL here and use an sk- key from the console';
+
+const resp = ['{', '  "id": "chatcmpl-9z…",', '  "model": "deepseek-v4-pro",', '  "choices": [{ "message": { "role": "assistant", "content": "Hello!" } }]', '}'];
+const cmdLines = [
+  ['curl ', 'https://api.aiwanai.cc/v1/chat/completions \\'],
+  ['  -H ', '"Authorization: Bearer sk-your-key" \\'],
+  ['  -H ', '"Content-Type: application/json" \\'],
+  ['  -d ', '\'{"model": "deepseek-v4-pro", "messages": [{"role":"user","content":"Hi"}]}\''],
+];
+const curlOneLiner = cmdLines.map(([c, r]) => c + r).join(' ').replace(/\\\s*/g, ' ').trim();
+---
+
+<section class="hero" aria-labelledby={PAGE_TITLE_ID}>
+  <div class="hero-bg" aria-hidden="true">
+    <div class="grid"></div>
+    <div class="orb orb-a"></div>
+    <div class="fade"></div>
+  </div>
+
+  <div class="hero-inner">
+    <p class="badge">
+      <span class="badge-dot" aria-hidden="true"></span>
+      {badge}
+    </p>
+
+    <h1 id={PAGE_TITLE_ID} data-page-title set:html={title} />
+    {tagline && <p class="tagline" set:html={tagline} />}
+
+    {
+      actions.length > 0 && (
+        <div class="actions">
+          {actions.map(({ link: href, text, variant, icon }) => {
+            const external = href.startsWith('http');
+            return (
+              <a
+                class:list={['btn', variant === 'primary' ? 'btn-primary' : 'btn-secondary']}
+                href={href}
+                target={external ? '_blank' : undefined}
+                rel={external ? 'noreferrer' : undefined}
+                aria-label={external ? (isZh ? `${text}（新窗口）` : `${text} (opens in a new tab)`) : undefined}
+              >
+                {text}
+                {icon && (
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                )}
+              </a>
+            );
+          })}
+        </div>
+      )
+    }
+
+    <div class="terminal">
+      <div class="terminal-bar">
+        <span class="terminal-name">{terminalTitle}</span>
+        <button class="copy aw-copy" type="button" data-copy={curlOneLiner} data-copied={copied} aria-label={isZh ? '复制 curl 命令' : 'Copy curl command'}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M5 15V5a2 2 0 012-2h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <span class="copy-label">{copyLabel}</span>
+        </button>
+      </div>
+      <pre class="terminal-body"><code>{cmdLines.map(([cmd, rest]) => (<span class="l"><span class="cmd">{cmd}</span><span class="str">{rest}</span></span>))}<span class="l resp">{resp.join('\n')}</span></code></pre>
+    </div>
+
+    <p class="hero-hint">{hint}</p>
+  </div>
+</section>
+
+<style>
+  .hero {
+    position: relative;
+    margin-inline: calc(-1 * var(--sl-content-pad-x, 1rem));
+    padding-block: clamp(2.25rem, calc(1rem + 6vmin), 4.5rem) clamp(1.75rem, 4vmin, 2.75rem);
+    padding-inline: var(--sl-content-pad-x, 1rem);
+    isolation: isolate;
+  }
+
+  .hero-bg { position: absolute; inset: 0; z-index: -1; overflow: hidden; }
+
+  .grid {
+    position: absolute; inset: -1px;
+    background-image: radial-gradient(
+      circle at center,
+      hsl(var(--sl-hue-accent) 60% 60% / 0.14) 1px,
+      transparent 1.4px
+    );
+    background-size: 26px 26px;
+    mask-image: radial-gradient(ellipse 78% 62% at 50% 34%, #000 12%, transparent 76%);
+    -webkit-mask-image: radial-gradient(ellipse 78% 62% at 50% 34%, #000 12%, transparent 76%);
+  }
+  :global([data-theme='light']) .grid {
+    background-image: radial-gradient(
+      circle at center,
+      hsl(var(--sl-hue-accent) 55% 55% / 0.18) 1px,
+      transparent 1.4px
+    );
+  }
+
+  .orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.28;
+    pointer-events: none;
+  }
+  .orb-a {
+    width: 28rem; height: 28rem; top: -12rem; left: 50%; transform: translateX(-58%);
+    background: radial-gradient(circle, hsl(255 90% 62% / 0.45), transparent 70%);
+  }
+  :global([data-theme='light']) .orb { opacity: 0.2; }
+
+  .fade {
+    position: absolute; inset: auto 0 0 0; height: 42%;
+    background: linear-gradient(to top, var(--sl-color-bg), transparent);
+  }
+
+  .hero-inner {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: clamp(1rem, 2.2vmin, 1.5rem);
+    text-align: center;
+    max-width: 52rem;
+    margin-inline: auto;
+    min-width: 0;
+    width: 100%;
+  }
+  .hero-inner > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    max-width: 100%;
+    margin: 0;
+    padding: 0.36rem 0.85rem 0.36rem 0.7rem;
+    border-radius: var(--aw-radius-pill, 999rem);
+    font-size: var(--sl-text-xs);
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    line-height: 1.35;
+    text-wrap: balance;
+    color: var(--sl-color-white);
+    background: hsl(var(--sl-hue-accent) 40% 24% / 0.72);
+    border: 1px solid hsl(var(--sl-hue-accent) 50% 60% / 0.4);
+    box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.09);
+  }
+  :global([data-theme='light']) .badge {
+    color: hsl(var(--sl-hue-accent) 62% 28%);
+    background: hsl(var(--sl-hue-accent) 90% 97%);
+    border-color: hsl(var(--sl-hue-accent) 55% 72%);
+    box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.7);
+  }
+  .badge-dot {
+    width: 0.42rem; height: 0.42rem; border-radius: 50%; flex: none;
+    background: var(--aw-cyan, hsl(205 90% 58%));
+  }
+
+  h1 {
+    margin: 0;
+    font-size: clamp(1.7rem, calc(0.85rem + 4.2vw), 3.6rem);
+    line-height: 1.12;
+    letter-spacing: -0.032em;
+    font-weight: 700;
+    color: var(--sl-color-white);
+    text-wrap: balance;
+    overflow-wrap: anywhere;
+  }
+  :global([data-theme='light']) h1 { color: var(--aw-ink, hsl(225 30% 12%)); }
+
+  .tagline {
+    margin: 0;
+    font-size: clamp(var(--sl-text-base), calc(0.4rem + 1.5vw), var(--sl-text-xl));
+    line-height: 1.55;
+    color: var(--sl-color-gray-2);
+    max-width: min(36ch, 100%);
+    padding-inline: 0.25rem;
+    text-wrap: pretty;
+    overflow-wrap: anywhere;
+    word-break: keep-all;
+  }
+  @media (max-width: 40rem) {
+    .tagline { max-width: 20em; }
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem 0.8rem;
+    justify-content: center;
+    width: 100%;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5em;
+    min-height: 2.75rem;
+    border-radius: var(--aw-radius-pill, 999rem);
+    font-size: var(--sl-text-sm);
+    font-weight: 600;
+    padding: 0.55rem 1.15rem;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: box-shadow var(--aw-dur, 160ms) var(--aw-ease-out, ease), border-color var(--aw-dur, 160ms) var(--aw-ease-out, ease), background-color var(--aw-dur, 160ms) var(--aw-ease-out, ease), transform 120ms var(--aw-ease-out, ease);
+  }
+  @media (min-width: 50rem) {
+    .btn { font-size: var(--sl-text-base); padding: 0.68rem 1.3rem; }
+  }
+  @media (max-width: 24rem) {
+    .btn { white-space: normal; text-wrap: balance; }
+  }
+
+  .btn-primary {
+    color: #fff;
+    background: var(--aw-grad-btn, linear-gradient(180deg, hsl(255 82% 64%), hsl(226 84% 56%)));
+    border: 1px solid var(--aw-btn-border, hsl(255 70% 58%));
+    box-shadow: 0 1px 0 hsl(0 0% 100% / 0.28) inset, 0 6px 18px var(--aw-btn-shadow, hsl(245 70% 55% / 0.36));
+  }
+  .btn-primary :global(svg) { color: #fff; }
+
+  .btn-secondary {
+    color: var(--sl-color-white);
+    background: hsl(var(--sl-hue-gray) 20% 96% / 0.05);
+    border: 1px solid hsl(var(--sl-hue-gray) 20% 70% / 0.22);
+  }
+  :global([data-theme='light']) .btn-secondary {
+    color: hsl(225 30% 20%);
+    background: hsl(0 0% 100% / 0.8);
+    border-color: hsl(225 20% 86%);
+    box-shadow: 0 1px 2px hsl(225 30% 40% / 0.06);
+  }
+  .btn-secondary :global(svg) { color: var(--sl-color-text-accent); }
+
+  .btn:active { transform: scale(0.97); }
+  @media (hover: hover) and (pointer: fine) {
+    .btn-primary:hover {
+      box-shadow: 0 1px 0 hsl(0 0% 100% / 0.32) inset, 0 10px 24px hsl(245 72% 56% / 0.46);
+    }
+    .btn-secondary:hover {
+      border-color: hsl(var(--sl-hue-accent) 60% 62%);
+    }
+  }
+
+  .terminal {
+    width: 100%;
+    margin-top: 0.4rem;
+    border-radius: var(--aw-radius-lg, 14px);
+    overflow: hidden;
+    text-align: left;
+    background: hsl(232 22% 12%);
+    border: 1px solid hsl(232 20% 30% / 0.85);
+    box-shadow:
+      0 1px 0 hsl(0 0% 100% / 0.06) inset,
+      0 16px 36px -18px hsl(245 60% 40% / 0.42);
+  }
+  :global([data-theme='light']) .terminal {
+    background: hsl(232 30% 99%);
+    border-color: hsl(232 20% 88%);
+    box-shadow: 0 1px 0 hsl(0 0% 100%) inset, 0 14px 32px -20px hsl(245 50% 55% / 0.28);
+  }
+
+  .terminal-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-width: 0;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid hsl(232 20% 24% / 0.7);
+    background: hsl(232 18% 15% / 0.6);
+  }
+  :global([data-theme='light']) .terminal-bar {
+    border-bottom-color: hsl(232 20% 90%);
+    background: hsl(232 30% 97% / 0.8);
+  }
+
+  .terminal-name {
+    font-size: var(--sl-text-xs);
+    font-family: var(--__sl-font-mono);
+    color: hsl(225 12% 62%);
+    margin-inline-end: auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .copy {
+    min-width: auto;
+    padding: 0.28rem 0.55rem;
+  }
+  :global([data-theme='dark']) .copy {
+    background: hsl(232 18% 18% / 0.6);
+    border-color: hsl(232 18% 32%);
+    color: hsl(225 12% 70%);
+  }
+
+  .terminal-body {
+    margin: 0;
+    padding: 0.85rem 1rem 0.95rem;
+    font-family: var(--__sl-font-mono);
+    font-size: clamp(0.72rem, 1.6vw, 0.84rem);
+    line-height: 1.75;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .terminal-body code { display: block; white-space: pre; }
+  .terminal-body .l { display: block; }
+  .terminal-body .cmd { color: hsl(205 90% 66%); margin-right: 0.45rem; }
+  .terminal-body .str { color: hsl(150 55% 68%); }
+  .terminal-body .l.resp {
+    margin-top: 0.65rem; padding-top: 0.65rem;
+    border-top: 1px dashed hsl(232 18% 32% / 0.8);
+    white-space: pre;
+    color: hsl(43 80% 72%);
+    opacity: 0.92;
+  }
+  @media (max-width: 50rem) {
+    .terminal-body code,
+    .terminal-body .l,
+    .terminal-body .l.resp {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+  }
+  :global([data-theme='light']) .terminal-body { color: hsl(232 20% 24%); }
+  :global([data-theme='light']) .terminal-body .cmd { color: hsl(205 85% 48%); }
+  :global([data-theme='light']) .terminal-body .str { color: hsl(140 55% 38%); }
+  :global([data-theme='light']) .terminal-body .l.resp { border-top-color: hsl(232 20% 88%); color: hsl(35 80% 42%); }
+
+  .hero-hint {
+    margin: 0;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0.45rem;
+    max-width: min(40rem, 100%);
+    text-wrap: pretty;
+    word-break: keep-all;
+  }
+  @media (min-width: 40rem) {
+    .hero-hint { align-items: center; }
+  }
+  .hero-hint::before {
+    content: '';
+    width: 0.3rem;
+    height: 0.3rem;
+    border-radius: 50%;
+    background: var(--sl-color-text-accent);
+    flex: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .btn:active { transform: none; }
+  }
+</style>

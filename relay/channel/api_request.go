@@ -49,6 +49,9 @@ func ApplyUpstreamBodyMetadata(req *http.Request, body io.Reader) {
 }
 
 func SetupApiRequestHeader(info *common.RelayInfo, c *gin.Context, req *http.Header) {
+	if id := c.GetString(common2.RequestIdKey); id != "" {
+		req.Set("X-Request-Id", id)
+	}
 	if info.RelayMode == constant.RelayModeAudioTranscription || info.RelayMode == constant.RelayModeAudioTranslation {
 		// multipart/form-data
 	} else if info.RelayMode == constant.RelayModeRealtime {

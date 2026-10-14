@@ -115,7 +115,9 @@ describe('log cost display', () => {
 
     expect(screen.getByText('$0.025')).toBeVisible()
     expect(screen.getByRole('img', { name: 'Subscription' })).toBeVisible()
-    expect(screen.queryByRole('img', { name: 'Wallet' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('img', { name: 'Wallet' })
+    ).not.toBeInTheDocument()
   })
 
   test('keeps legacy cost visible without inventing a funding source', () => {
@@ -230,4 +232,32 @@ describe('log cost display', () => {
       screen.getByRole('img', { name: 'Includes tool-call surcharge' })
     ).toHaveAttribute('data-tool-surcharge-indicator', 'true')
   })
+})
+
+test.each([
+  { other: { billing_marker: 'free' } },
+  { other: { billing_source: 'wallet', bonus_quota: 1000, paid_quota: 4000 } },
+])(
+  'marks a wallet cost using free points without a monetary prefix',
+  ({ other }) => {
+    renderCost({ quota: 5000, other })
+    expect(screen.getByLabelText('Free points')).toHaveTextContent('free')
+    expect(screen.getByText('0.01')).toBeVisible()
+    expect(screen.queryByText('$0.01')).not.toBeInTheDocument()
+  }
+)
+
+test('keeps subscription cost and source when stale wallet points metadata exists', () => {
+  renderCost({
+    quota: 5000,
+    other: {
+      billing_source: 'subscription',
+      bonus_quota: 5000,
+      billing_marker: 'free',
+      subscription_consumed: 12500,
+    },
+  })
+  expect(screen.getByText('$0.025')).toBeVisible()
+  expect(screen.getByRole('img', { name: 'Subscription' })).toBeVisible()
+  expect(screen.queryByLabelText('Free points')).not.toBeInTheDocument()
 })

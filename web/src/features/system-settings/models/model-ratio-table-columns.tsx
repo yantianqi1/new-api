@@ -93,7 +93,8 @@ export function buildModelRatioColumns({
         const showTaskPricingBadge = isTaskModel && hasConfiguredTaskPricing
         const showTieredBadge =
           row.original.billingMode === 'tiered_expr' && !isTaskModel
-        const showUnconfiguredTaskBadge = isTaskModel && !hasConfiguredTaskPricing
+        const showUnconfiguredTaskBadge =
+          isTaskModel && !hasConfiguredTaskPricing
 
         return (
           <div className='flex min-w-0 items-center gap-2 font-medium'>
@@ -151,7 +152,10 @@ export function buildModelRatioColumns({
       ),
       filterFn: (row, id, value) => {
         if (filterBySelectedValues(row.getValue(id), value)) return true
-        if (!Array.isArray(value) || !value.includes(TASK_PRICING_MODE_FILTER)) {
+        if (
+          !Array.isArray(value) ||
+          !value.includes(TASK_PRICING_MODE_FILTER)
+        ) {
           return false
         }
         return (
@@ -161,6 +165,26 @@ export function buildModelRatioColumns({
         )
       },
       meta: { label: t('Mode') },
+    },
+    {
+      accessorKey: 'bonusQuotaEnabled',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Points deduction')} />
+      ),
+      cell: ({ row }) => (
+        <StatusBadge
+          label={
+            row.original.bonusQuotaEnabled ? t('Allowed') : t('Not allowed')
+          }
+          variant={row.original.bonusQuotaEnabled ? 'success' : 'neutral'}
+          copyable={false}
+          showDot={false}
+          className='-ml-1.5 px-0'
+        />
+      ),
+      filterFn: (row, id, value) =>
+        filterBySelectedValues(row.getValue(id), value),
+      meta: { label: t('Points deduction') },
     },
     {
       id: 'priceSummary',

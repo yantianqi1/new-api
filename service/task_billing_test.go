@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -1809,4 +1810,185 @@ func TestSettle_TokenRecalcFallsBackToCompletionTokens(t *testing.T) {
 			assert.Equal(t, testCase.wantQuota, task.Quota)
 		})
 	}
+}
+
+func TestBonusTaskRefundRestoresPersistedWalletSplit(t *testing.T) {
+	truncate(t)
+	seedUser(t, 9101, 90)
+	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", 9101).Update("bonus_quota", 40).Error)
+	task := makeTask(9101, 0, 30, 0, BillingSourceWallet, 0)
+	task.PrivateData.BonusQuotaModel = true
+	task.PrivateData.BonusQuotaConsumed = 20
+	task.PrivateData.PaidQuotaConsumed = 10
+	require.NoError(t, model.DB.Create(task).Error)
+	var restarted model.Task
+	require.NoError(t, model.DB.First(&restarted, task.ID).Error)
+	stale := restarted
+	require.True(t, RefundTaskQuota(context.Background(), &restarted, "upstream failure"))
+	var user model.User
+	require.NoError(t, model.DB.First(&user, 9101).Error)
+	assert.Equal(t, 60, user.BonusQuota)
+	assert.Equal(t, 100, user.Quota)
+	var refundOther map[string]any
+	require.NoError(t, common.UnmarshalJsonStr(getLastLog(t).Other, &refundOther))
+	assert.Equal(t, float64(20), refundOther["bonus_quota"])
+	assert.Equal(t, float64(10), refundOther["paid_quota"])
+	require.NoError(t, model.DB.First(&restarted, task.ID).Error)
+	assert.Zero(t, restarted.Quota)
+	assert.Zero(t, restarted.PrivateData.BonusQuotaConsumed)
+	assert.Zero(t, restarted.PrivateData.PaidQuotaConsumed)
+	require.True(t, RefundTaskQuota(context.Background(), &restarted, "duplicate poll"))
+	assert.False(t, RefundTaskQuota(context.Background(), &stale, "stale duplicate poll"))
+	require.NoError(t, model.DB.First(&user, 9101).Error)
+	assert.Equal(t, 60, user.BonusQuota)
+	assert.Equal(t, 100, user.Quota)
+}
+
+func TestBonusTaskDifferenceRefundsPaidBeforeBonus(t *testing.T) {
+	truncate(t)
+	seedUser(t, 9102, 90)
+	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", 9102).Update("bonus_quota", 40).Error)
+	task := makeTask(9102, 0, 30, 0, BillingSourceWallet, 0)
+	task.PrivateData.BonusQuotaModel = true
+	task.PrivateData.BonusQuotaConsumed = 20
+	task.PrivateData.PaidQuotaConsumed = 10
+	require.NoError(t, model.DB.Create(task).Error)
+	RecalculateTaskQuota(context.Background(), task, 15, common.NewMessage("actual cost"))
+	var refundOther map[string]any
+	require.NoError(t, common.UnmarshalJsonStr(getLastLog(t).Other, &refundOther))
+	assert.Equal(t, float64(5), refundOther["bonus_quota"])
+	assert.Equal(t, float64(10), refundOther["paid_quota"])
+	var restarted model.Task
+	require.NoError(t, model.DB.First(&restarted, task.ID).Error)
+	assert.Equal(t, 15, restarted.Quota)
+	assert.Equal(t, 15, restarted.PrivateData.BonusQuotaConsumed)
+	assert.Zero(t, restarted.PrivateData.PaidQuotaConsumed)
+	var user model.User
+	require.NoError(t, model.DB.First(&user, 9102).Error)
+	assert.Equal(t, 45, user.BonusQuota)
+	assert.Equal(t, 100, user.Quota)
+	require.True(t, RefundTaskQuota(context.Background(), &restarted, "late failure"))
+	require.NoError(t, model.DB.First(&user, 9102).Error)
+	assert.Equal(t, 60, user.BonusQuota)
+	assert.Equal(t, 100, user.Quota)
+}
+
+func TestBonusTaskAdditionalChargeReservesWalletAndPersistsSplit(t *testing.T) {
+	truncate(t)
+	seedUser(t, 9103, 10)
+	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", 9103).Update("bonus_quota", 5).Error)
+	task := makeTask(9103, 0, 30, 0, BillingSourceWallet, 0)
+	task.PrivateData.BonusQuotaModel = true
+	task.PrivateData.BonusQuotaConsumed = 20
+	task.PrivateData.PaidQuotaConsumed = 10
+	require.NoError(t, model.DB.Create(task).Error)
+	RecalculateTaskQuota(context.Background(), task, 42, common.NewMessage("actual cost"))
+	var restarted model.Task
+	require.NoError(t, model.DB.First(&restarted, task.ID).Error)
+	assert.Equal(t, 42, restarted.Quota)
+	assert.Equal(t, 25, restarted.PrivateData.BonusQuotaConsumed)
+	assert.Equal(t, 17, restarted.PrivateData.PaidQuotaConsumed)
+	var user model.User
+	require.NoError(t, model.DB.First(&user, 9103).Error)
+	assert.Zero(t, user.BonusQuota)
+	assert.Equal(t, 3, user.Quota)
+	RecalculateTaskQuota(context.Background(), &restarted, 46, common.NewMessage("insufficient extra cost"))
+	require.NoError(t, model.DB.First(&restarted, task.ID).Error)
+	assert.Equal(t, 42, restarted.Quota)
+	require.NoError(t, model.DB.First(&user, 9103).Error)
+	assert.Equal(t, 3, user.Quota)
+}
+
+func TestBonusBillingSessionWalletLifecycle(t *testing.T) {
+	oldModels := ratio_setting.BonusQuotaModels2JSONString()
+	require.NoError(t, ratio_setting.UpdateBonusQuotaModelsByJSONString(`{"bonus-session-model":true}`))
+	t.Cleanup(func() { require.NoError(t, ratio_setting.UpdateBonusQuotaModelsByJSONString(oldModels)) })
+	for _, scenario := range []string{"settle", "token reserve rollback", "playground refund"} {
+		t.Run(scenario, func(t *testing.T) {
+			truncate(t)
+			seedUser(t, 9201, 100)
+			require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", 9201).Update("bonus_quota", 350).Error)
+			info := &relaycommon.RelayInfo{UserId: 9201, OriginModelName: "bonus-session-model", IsPlayground: true, UserSetting: dto.UserSetting{BillingPreference: "wallet_only"}}
+			if scenario == "token reserve rollback" {
+				seedToken(t, 9201, 9201, "bonus-session-token", 400)
+				info.IsPlayground = false
+				info.TokenId = 9201
+				info.TokenKey = "bonus-session-token"
+			}
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+			session, apiErr := NewBillingSession(c, info, 400)
+			require.Nil(t, apiErr)
+			require.NotNil(t, session)
+			require.True(t, session.NeedsRefund())
+			assert.Equal(t, 350, info.BonusQuotaConsumed)
+			assert.Equal(t, 50, info.PaidQuotaConsumed)
+			switch scenario {
+			case "settle":
+				require.Error(t, session.Reserve(500))
+				assert.Equal(t, 400, session.GetPreConsumedQuota())
+				require.NoError(t, session.Settle(300))
+				assert.Equal(t, 300, info.BonusQuotaConsumed)
+				assert.Zero(t, info.PaidQuotaConsumed)
+				var balance model.User
+				require.NoError(t, model.DB.First(&balance, 9201).Error)
+				assert.Equal(t, 50, balance.BonusQuota)
+				assert.Equal(t, 100, balance.Quota)
+			case "token reserve rollback":
+				require.Error(t, session.Reserve(450))
+				assert.Equal(t, 400, session.GetPreConsumedQuota())
+				require.NoError(t, session.Settle(400))
+				assert.Equal(t, 350, info.BonusQuotaPreConsumed)
+				assert.Equal(t, 50, info.PaidQuotaPreConsumed)
+				var balance model.User
+				require.NoError(t, model.DB.First(&balance, 9201).Error)
+				assert.Zero(t, balance.BonusQuota)
+				assert.Equal(t, 50, balance.Quota)
+			case "playground refund":
+				refunded := make(chan struct{}, 1)
+				const callback = "bonus_playground_refund_observed"
+				require.NoError(t, model.DB.Callback().Update().After("gorm:commit_or_rollback_transaction").Register(callback, func(tx *gorm.DB) {
+					if tx.Statement.Table == "users" && tx.Error == nil {
+						select {
+						case refunded <- struct{}{}:
+						default:
+						}
+					}
+				}))
+				defer func() { require.NoError(t, model.DB.Callback().Update().Remove(callback)) }()
+				session.Refund(c)
+				session.Refund(c)
+				select {
+				case <-refunded:
+				case <-time.After(5 * time.Second):
+					t.Fatal("bonus refund did not finish")
+				}
+				var balance model.User
+				require.NoError(t, model.DB.First(&balance, 9201).Error)
+				assert.Equal(t, 350, balance.BonusQuota)
+				assert.Equal(t, 100, balance.Quota)
+			}
+		})
+	}
+}
+
+func TestBonusTaskStaleSettlementRollsBackWalletDeduction(t *testing.T) {
+	truncate(t)
+	seedUser(t, 9104, 100)
+	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", 9104).Update("bonus_quota", 10).Error)
+	task := makeTask(9104, 0, 30, 0, BillingSourceWallet, 0)
+	task.PrivateData.BonusQuotaModel = true
+	task.PrivateData.BonusQuotaConsumed = 20
+	task.PrivateData.PaidQuotaConsumed = 10
+	require.NoError(t, model.DB.Create(task).Error)
+	stale := *task
+	RecalculateTaskQuota(context.Background(), task, 35, common.NewMessage("actual cost"))
+	RecalculateTaskQuota(context.Background(), &stale, 35, common.NewMessage("stale poll"))
+	var user model.User
+	require.NoError(t, model.DB.First(&user, 9104).Error)
+	assert.Equal(t, 5, user.BonusQuota)
+	assert.Equal(t, 100, user.Quota)
+	require.NoError(t, model.DB.First(task, task.ID).Error)
+	assert.Equal(t, 35, task.Quota)
+	assert.Equal(t, 25, task.PrivateData.BonusQuotaConsumed)
 }

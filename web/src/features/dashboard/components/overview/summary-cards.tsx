@@ -18,7 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ArrowRight, Flame, ShieldCheck, TrendingDown } from 'lucide-react'
+import {
+  ArrowRight,
+  Flame,
+  ShieldCheck,
+  TrendingDown,
+  Sparkles,
+} from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -144,6 +150,7 @@ export function SummaryCards() {
 
   const summaryTimeRange = useMemo(() => computeTimeRange(1), [])
   const remainQuota = Number(user?.quota ?? 0)
+  const bonusQuota = Number(user?.bonus_quota ?? 0)
   const usedQuota = Number(user?.used_quota ?? 0)
   const requestCount = Number(user?.request_count ?? 0)
 
@@ -292,7 +299,7 @@ export function SummaryCards() {
           <div className='flex flex-col gap-2 sm:gap-3'>
             <div className='flex items-center justify-between'>
               <span className='text-muted-foreground text-xs font-medium'>
-                {t('Credit remaining')}
+                {t('Paid Balance')}
               </span>
               <span className='flex items-center gap-1.5'>
                 <span
@@ -309,6 +316,17 @@ export function SummaryCards() {
               {formatQuota(remainQuota)}
             </div>
 
+            <div className='bg-background/60 rounded-lg p-3'>
+              <StatCard
+                title={t('Points Balance')}
+                value={formatQuota(bonusQuota)}
+                description={t('Points')}
+                icon={Sparkles}
+                tone='accent-3'
+                loading={loading}
+                compactMobile
+              />
+            </div>
             <div className='grid grid-cols-2 gap-2'>
               <div className='bg-background/60 rounded-lg px-2.5 py-2'>
                 <div className='text-muted-foreground flex items-center gap-1 text-[11px] leading-none font-medium'>

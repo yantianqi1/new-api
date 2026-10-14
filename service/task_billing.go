@@ -49,6 +49,14 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo, task *model
 	}
 	other := model.NewLogOther()
 	other.SetPublic("is_task", true)
+	if task.PrivateData.BonusQuotaModel {
+		other.SetPublic("bonus_quota_model", true)
+		other.SetPublic("bonus_quota", task.PrivateData.BonusQuotaConsumed)
+		other.SetPublic("paid_quota", task.PrivateData.PaidQuotaConsumed)
+		if task.PrivateData.BonusQuotaConsumed > 0 {
+			other.SetPublic("billing_marker", "free")
+		}
+	}
 	other.SetPublic("request_path", c.Request.URL.Path)
 	if taskDeliveredInline(c, task) {
 		other.SetPublic("task_sync", true)
@@ -117,6 +125,9 @@ func taskAdjustFunding(task *model.Task, delta int) error {
 	if taskIsSubscription(task) {
 		return model.PostConsumeUserSubscriptionDelta(task.PrivateData.SubscriptionId, int64(delta))
 	}
+	if task.PrivateData.BonusQuotaModel {
+		return model.SettleTaskBonusWallet(task, task.Quota+delta)
+	}
 	if delta > 0 {
 		return model.DecreaseUserQuota(task.UserId, delta, false)
 	}
@@ -149,6 +160,11 @@ func taskBillingOther(task *model.Task) *model.LogOther {
 	other := model.NewLogOther()
 	// 前端列表按 is_task 选择任务档位渲染分支,缺失会把差额/退款日志误判成普通 relay 动态计费
 	other.SetPublic("is_task", true)
+	if task.PrivateData.BonusQuotaModel {
+		other.SetPublic("bonus_quota_model", true)
+		other.SetPublic("bonus_quota", task.PrivateData.BonusQuotaConsumed)
+		other.SetPublic("paid_quota", task.PrivateData.PaidQuotaConsumed)
+	}
 	if bc := task.PrivateData.BillingContext; bc != nil {
 		other.SetPublic("model_price", bc.ModelPrice)
 		if bc.ModelRatio > 0 {
@@ -262,6 +278,7 @@ func taskModelName(task *model.Task) string {
 // 返回资金来源是否已成功退还；失败时保留 quota，供显式重试或人工对账。
 func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) bool {
 	quota := task.Quota
+	bonusQuota, paidQuota := task.PrivateData.BonusQuotaConsumed, task.PrivateData.PaidQuotaConsumed
 	if quota == 0 {
 		return true
 	}
@@ -281,6 +298,13 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) bool 
 
 	// 4. 记录日志
 	other := taskBillingOther(task)
+	if task.PrivateData.BonusQuotaModel {
+		other.SetPublic("bonus_quota", bonusQuota)
+		other.SetPublic("paid_quota", paidQuota)
+		if bonusQuota > 0 {
+			other.SetPublic("billing_marker", "free")
+		}
+	}
 	other.SetPublic("task_id", task.TaskID)
 	other.SetPublic("reason", reason)
 	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
@@ -297,8 +321,10 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) bool 
 	// 5. 资金退款完成后再清除持久化标记。
 	// 回写失败必须显式告警，避免漏掉潜在的重复退款风险。
 	task.Quota = 0
-	if err := task.UpdateQuota(); err != nil {
-		logger.LogError(ctx, common.LogText("refund succeeded but clearing the task quota failed, task %s: %s", task.TaskID, err.Error()))
+	if !task.PrivateData.BonusQuotaModel {
+		if err := task.UpdateQuota(); err != nil {
+			logger.LogError(ctx, common.LogText("refund succeeded but clearing the task quota failed, task %s: %s", task.TaskID, err.Error()))
+		}
 	}
 	return true
 }
@@ -312,6 +338,7 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 		return
 	}
 	preConsumedQuota := task.Quota
+	previousBonus, previousPaid := task.PrivateData.BonusQuotaConsumed, task.PrivateData.PaidQuotaConsumed
 	quotaDelta := actualQuota - preConsumedQuota
 
 	if quotaDelta == 0 {
@@ -338,8 +365,10 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	taskAdjustTokenQuota(ctx, task, quotaDelta)
 
 	task.Quota = actualQuota
-	if err := task.UpdateQuota(); err != nil {
-		logger.LogError(ctx, common.LogText("failed to write back the settled task quota, task %s: %s", task.TaskID, err.Error()))
+	if !task.PrivateData.BonusQuotaModel {
+		if err := task.UpdateQuota(); err != nil {
+			logger.LogError(ctx, common.LogText("failed to write back the settled task quota, task %s: %s", task.TaskID, err.Error()))
+		}
 	}
 
 	// 提交阶段已经累计过一次请求；结算阶段只调整最终用量。
@@ -356,6 +385,18 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 		logQuota = -quotaDelta
 	}
 	other := taskBillingOther(task)
+	if task.PrivateData.BonusQuotaModel {
+		bonusDelta := task.PrivateData.BonusQuotaConsumed - previousBonus
+		paidDelta := task.PrivateData.PaidQuotaConsumed - previousPaid
+		if quotaDelta < 0 {
+			bonusDelta, paidDelta = -bonusDelta, -paidDelta
+		}
+		other.SetPublic("bonus_quota", bonusDelta)
+		other.SetPublic("paid_quota", paidDelta)
+		if bonusDelta > 0 {
+			other.SetPublic("billing_marker", "free")
+		}
+	}
 	other.SetPublic("task_id", task.TaskID)
 	other.SetPublic("pre_consumed_quota", preConsumedQuota)
 	other.SetPublic("actual_quota", actualQuota)

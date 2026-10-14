@@ -30,7 +30,12 @@ import {
 } from '@/components/ui/tooltip'
 import { formatQuota, formatTimestampToDate } from '@/lib/format'
 
-import { REDEMPTION_FILTER_EXPIRED, REDEMPTION_STATUSES } from '../constants'
+import {
+  REDEMPTION_FILTER_EXPIRED,
+  REDEMPTION_QUOTA_TYPES,
+  REDEMPTION_STATUSES,
+  normalizeRedemptionQuotaType,
+} from '../constants'
 import { isRedemptionExpired, isTimestampExpired } from '../lib'
 import type { Redemption } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
@@ -171,6 +176,26 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
       size: 120,
     },
     {
+      accessorKey: 'quota_type',
+      header: t('Type'),
+      meta: { mobileHidden: true },
+      cell: ({ row }) => {
+        const quotaType = normalizeRedemptionQuotaType(
+          row.getValue('quota_type') as string | undefined
+        )
+        const config = REDEMPTION_QUOTA_TYPES[quotaType]
+        return (
+          <StatusBadge
+            label={t(config.labelKey)}
+            variant={config.variant}
+            copyable={false}
+            className='-ml-1.5'
+          />
+        )
+      },
+      size: 140,
+    },
+    {
       accessorKey: 'created_time',
       header: t('Created'),
       meta: { mobileHidden: true },
@@ -182,6 +207,30 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
         )
       },
       size: 180,
+    },
+    {
+      id: 'usage',
+      header: t('Redemption usage'),
+      meta: { mobileHidden: true },
+      cell: ({ row }) => {
+        const redemption = row.original
+        return (
+          <StatusBadge
+            label={t('{{used}} / {{max}} used', {
+              used: redemption.used_count,
+              max: redemption.max_uses,
+            })}
+            variant={
+              redemption.used_count >= redemption.max_uses
+                ? 'neutral'
+                : 'success'
+            }
+            copyable={false}
+            className='-ml-1.5'
+          />
+        )
+      },
+      size: 140,
     },
     {
       accessorKey: 'expired_time',
@@ -233,7 +282,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
                   className='cursor-help'
                 />
               }
-            ></TooltipTrigger>
+            />
             <TooltipContent>
               <div className='space-y-1 text-xs'>
                 <div>

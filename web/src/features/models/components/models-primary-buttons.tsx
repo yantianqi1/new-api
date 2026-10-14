@@ -16,8 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, MoreHorizontal, List, AlertCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -29,13 +31,41 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useCanEditModelPricing } from '@/features/model-pricing/api'
+import { handleServerError } from '@/lib/handle-server-error'
+import { requireServerSuccess } from '@/lib/server-error-message'
 
+import { syncMarketplaceModels } from '../api'
 import { useModels } from './models-provider'
 
 export function ModelsPrimaryButtons() {
   const { t } = useTranslation()
   const { setOpen, setCurrentRow } = useModels()
   const canPrice = useCanEditModelPricing()
+  const queryClient = useQueryClient()
+  const marketplaceSync = useMutation({
+    mutationFn: async () => requireServerSuccess(await syncMarketplaceModels()),
+    onSuccess: async (response) => {
+      const result = response.data
+      if (result) {
+        toast.success(
+          t(
+            'Model Square synced: {{created}} added, {{existing}} existing, {{total}} total.',
+            {
+              created: result.created_models,
+              existing: result.existing_models,
+              total: result.total_models,
+            }
+          )
+        )
+      }
+      await Promise.all(
+        ['models', 'pricing'].map((key) =>
+          queryClient.invalidateQueries({ queryKey: [key] })
+        )
+      )
+    },
+    onError: (error) => handleServerError(error),
+  })
 
   const handleCreateModel = () => {
     setCurrentRow(null)
@@ -68,6 +98,14 @@ export function ModelsPrimaryButtons() {
           {t('Sync pricing')}
         </Button>
       )}
+      <Button
+        variant='outline'
+        size='sm'
+        disabled={marketplaceSync.isPending}
+        onClick={() => marketplaceSync.mutate()}
+      >
+        {t('Sync Model Square')}
+      </Button>
       {/* Create Model */}
       <Button onClick={handleCreateModel} size='sm'>
         <Plus className='h-4 w-4' />

@@ -64,6 +64,14 @@ export function usePricingColumns(
             <span className='truncate font-mono text-sm font-medium'>
               {model.model_name}
             </span>
+            {model.bonus_quota_enabled && (
+              <StatusBadge
+                label={t('Points deduction')}
+                variant='success'
+                size='sm'
+                copyable={false}
+              />
+            )}
           </div>
         )
       },

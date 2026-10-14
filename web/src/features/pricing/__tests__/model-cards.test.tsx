@@ -800,3 +800,20 @@ describe('model cards', () => {
     vi.useRealTimers()
   })
 })
+
+it('shows points deduction only for models explicitly allowed by the server', () => {
+  const { rerender } = render(
+    <ModelCard
+      model={pricingModel({ bonus_quota_enabled: true })}
+      onClick={vi.fn()}
+    />
+  )
+  expect(screen.getByText('Points deduction')).toBeVisible()
+  rerender(
+    <ModelCard
+      model={pricingModel({ bonus_quota_enabled: false })}
+      onClick={vi.fn()}
+    />
+  )
+  expect(screen.queryByText('Points deduction')).not.toBeInTheDocument()
+})

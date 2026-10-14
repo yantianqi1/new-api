@@ -6,16 +6,17 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
-	"io"
-	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
@@ -36,9 +37,9 @@ func generateCreemSignature(payload string, secret string) string {
 // 验证Creem webhook签名
 func verifyCreemSignature(payload string, signature string, secret string) bool {
 	if secret == "" {
-		logger.LogWarn(context.Background(), common.LogText("Creem webhook secret is not configured test_mode=%t signature=%q body=%q", setting.CreemTestMode, signature, payload))
+		logger.LogWarn(context.Background(), fmt.Sprintf("Creem webhook secret 未配置 test_mode=%t payload_bytes=%d", setting.CreemTestMode, len(payload)))
 		if setting.CreemTestMode {
-			logger.LogInfo(context.Background(), common.LogText("Creem webhook signature check skipped reason=test_mode signature=%q body=%q", signature, payload))
+			logger.LogInfo(context.Background(), fmt.Sprintf("Creem webhook 验签已跳过 reason=test_mode payload_bytes=%d", len(payload)))
 			return true
 		}
 		return false
@@ -54,11 +55,19 @@ type CreemPayRequest struct {
 }
 
 type CreemProduct struct {
-	ProductId string  `json:"productId"`
-	Name      string  `json:"name"`
-	Price     float64 `json:"price"`
-	Currency  string  `json:"currency"`
-	Quota     int64   `json:"quota"`
+	ProductId           string  `json:"productId"`
+	Name                string  `json:"name"`
+	Price               float64 `json:"price"`
+	Currency            string  `json:"currency"`
+	Quota               int64   `json:"quota"`
+	CommissionBaseQuota int64   `json:"commissionBaseQuota,omitempty"`
+}
+
+func (product CreemProduct) normalizedCommissionBaseQuota() int {
+	if product.CommissionBaseQuota <= 0 || product.CommissionBaseQuota > common.MaxWalletQuota {
+		return 0
+	}
+	return int(product.CommissionBaseQuota)
 }
 
 type CreemAdaptor struct {
@@ -77,7 +86,7 @@ func (*CreemAdaptor) RequestPay(c *gin.Context, req *CreemPayRequest) {
 
 	// 解析产品列表
 	var products []CreemProduct
-	err := json.Unmarshal([]byte(setting.CreemProducts), &products)
+	err := common.Unmarshal([]byte(setting.CreemProducts), &products)
 	if err != nil {
 		logger.LogError(c.Request.Context(), common.LogText("Creem failed to parse product config user_id=%d error=%q", c.GetInt("id"), err.Error()))
 		paymentError(c, common.NewMessage("Product configuration error"))
@@ -95,6 +104,10 @@ func (*CreemAdaptor) RequestPay(c *gin.Context, req *CreemPayRequest) {
 
 	if selectedProduct == nil {
 		paymentError(c, common.NewMessage("Product does not exist"))
+		return
+	}
+	if selectedProduct.Price <= 0 || selectedProduct.Quota <= 0 {
+		paymentError(c, common.NewMessage("Invalid payment configuration"))
 		return
 	}
 
@@ -115,14 +128,17 @@ func (*CreemAdaptor) RequestPay(c *gin.Context, req *CreemPayRequest) {
 
 	// 先创建订单记录，使用产品配置的金额和充值额度
 	topUp := &model.TopUp{
-		UserId:          id,
-		Amount:          selectedProduct.Quota, // 充值额度
-		Money:           selectedProduct.Price, // 支付金额
-		TradeNo:         referenceId,
-		PaymentMethod:   model.PaymentMethodCreem,
-		PaymentProvider: model.PaymentProviderCreem,
-		CreateTime:      time.Now().Unix(),
-		Status:          common.TopUpStatusPending,
+		UserId:              id,
+		Amount:              selectedProduct.Quota, // 充值额度
+		Money:               selectedProduct.Price, // 支付金额
+		ActualPaidAmount:    decimal.NewFromFloat(selectedProduct.Price).String(),
+		Currency:            strings.ToUpper(strings.TrimSpace(selectedProduct.Currency)),
+		CommissionBaseQuota: selectedProduct.normalizedCommissionBaseQuota(),
+		TradeNo:             referenceId,
+		PaymentMethod:       model.PaymentMethodCreem,
+		PaymentProvider:     model.PaymentProviderCreem,
+		CreateTime:          time.Now().Unix(),
+		Status:              common.TopUpStatusPending,
 	}
 	err = topUp.Insert()
 	if err != nil {
@@ -161,7 +177,7 @@ func RequestCreemPay(c *gin.Context) {
 		return
 	}
 
-	logger.LogInfo(c.Request.Context(), common.LogText("Creem payment request received user_id=%d body=%q", c.GetInt("id"), string(bodyBytes)))
+	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Creem 支付请求已收到 user_id=%d payload_bytes=%d", c.GetInt("id"), len(bodyBytes)))
 
 	// 重新设置body供后续的ShouldBindJSON使用
 	c.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
@@ -252,16 +268,16 @@ func CreemWebhook(c *gin.Context) {
 
 	// 获取签名头
 	signature := c.GetHeader(CreemSignatureHeader)
-	logger.LogInfo(c.Request.Context(), common.LogText("Creem webhook received request path=%q client_ip=%s signature=%q body=%q", c.Request.RequestURI, c.ClientIP(), signature, string(bodyBytes)))
+	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Creem webhook 收到请求 path=%q client_ip=%s payload_bytes=%d", c.Request.RequestURI, c.ClientIP(), len(bodyBytes)))
 	if signature == "" {
-		logger.LogWarn(c.Request.Context(), common.LogText("Creem webhook missing signature path=%q client_ip=%s body=%q", c.Request.RequestURI, c.ClientIP(), string(bodyBytes)))
+		logger.LogWarn(c.Request.Context(), fmt.Sprintf("Creem webhook 缺少签名 path=%q client_ip=%s payload_bytes=%d", c.Request.RequestURI, c.ClientIP(), len(bodyBytes)))
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
 
 	// 验证签名
 	if !verifyCreemSignature(string(bodyBytes), signature, setting.CreemWebhookSecret) {
-		logger.LogWarn(c.Request.Context(), common.LogText("Creem webhook signature verification failed path=%q client_ip=%s signature=%q body=%q", c.Request.RequestURI, c.ClientIP(), signature, string(bodyBytes)))
+		logger.LogWarn(c.Request.Context(), fmt.Sprintf("Creem webhook 验签失败 path=%q client_ip=%s payload_bytes=%d", c.Request.RequestURI, c.ClientIP(), len(bodyBytes)))
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
@@ -274,7 +290,7 @@ func CreemWebhook(c *gin.Context) {
 	// 解析新格式的webhook数据
 	var webhookEvent CreemWebhookEvent
 	if err := c.ShouldBindJSON(&webhookEvent); err != nil {
-		logger.LogError(c.Request.Context(), common.LogText("Creem webhook failed to parse path=%q client_ip=%s error=%q body=%q", c.Request.RequestURI, c.ClientIP(), err.Error(), string(bodyBytes)))
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Creem webhook 解析失败 path=%q client_ip=%s error=%q payload_bytes=%d", c.Request.RequestURI, c.ClientIP(), err.Error(), len(bodyBytes)))
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
@@ -356,14 +372,24 @@ func handleCheckoutCompleted(c *gin.Context, event *CreemWebhookEvent) {
 		logger.LogWarn(c.Request.Context(), common.LogText("Creem callback customer name is empty trade_no=%s creem_order_id=%s", referenceId, event.Object.Order.Id))
 	}
 
-	err := model.RechargeCreem(referenceId, customerEmail, customerName, c.ClientIP())
+	result, err := model.CompleteOnlineTopUp(model.CompleteOnlineTopUpInput{
+		TradeNo:         referenceId,
+		PaymentProvider: model.PaymentProviderCreem,
+		PaymentMethod:   model.PaymentMethodCreem,
+		SettledAmount:   minorUnitAmountString(int64(event.Object.Order.AmountPaid), event.Object.Order.Currency),
+		SettledCurrency: event.Object.Order.Currency,
+		CustomerEmail:   customerEmail,
+	})
 	if err != nil {
 		logger.LogError(c.Request.Context(), common.LogText("Creem top-up processing failed trade_no=%s creem_order_id=%s client_ip=%s error=%q", referenceId, event.Object.Order.Id, c.ClientIP(), err.Error()))
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
 
-	logger.LogInfo(c.Request.Context(), common.LogText("Creem top-up succeeded trade_no=%s creem_order_id=%s quota=%d money=%.2f client_ip=%s", referenceId, event.Object.Order.Id, topUp.Amount, topUp.Money, c.ClientIP()))
+	if !result.AlreadyCompleted {
+		model.RecordTopupLog(result.TopUp.UserId, common.NewMessage("Online top-up succeeded, amount added: {{quota}}, payment amount: {{amount}}", map[string]any{"quota": result.QuotaAdded, "amount": result.TopUp.ActualPaidAmount}), c.ClientIP(), result.TopUp.PaymentMethod, model.PaymentMethodCreem)
+	}
+	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Creem 充值成功 trade_no=%s creem_order_id=%s quota=%d money=%s currency=%s client_ip=%s", referenceId, event.Object.Order.Id, result.QuotaAdded, result.TopUp.ActualPaidAmount, result.TopUp.Currency, c.ClientIP()))
 	c.Status(http.StatusOK)
 }
 
@@ -411,7 +437,7 @@ func genCreemLink(ctx context.Context, referenceId string, product *CreemProduct
 	}
 
 	// 序列化请求数据
-	jsonData, err := json.Marshal(requestData)
+	jsonData, err := common.Marshal(requestData)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal request data: %v", err)
 	}
@@ -444,7 +470,7 @@ func genCreemLink(ctx context.Context, referenceId string, product *CreemProduct
 		return "", fmt.Errorf("failed to read response: %v", err)
 	}
 
-	logger.LogInfo(ctx, common.LogText("Creem API response received trade_no=%s status_code=%d body=%q", referenceId, resp.StatusCode, string(body)))
+	logger.LogInfo(ctx, fmt.Sprintf("Creem API 响应已收到 trade_no=%s status_code=%d payload_bytes=%d", referenceId, resp.StatusCode, len(body)))
 
 	// 检查响应状态
 	if resp.StatusCode/100 != 2 {
@@ -452,7 +478,7 @@ func genCreemLink(ctx context.Context, referenceId string, product *CreemProduct
 	}
 	// 解析响应
 	var checkoutResp CreemCheckoutResponse
-	err = json.Unmarshal(body, &checkoutResp)
+	err = common.Unmarshal(body, &checkoutResp)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse response: %v", err)
 	}

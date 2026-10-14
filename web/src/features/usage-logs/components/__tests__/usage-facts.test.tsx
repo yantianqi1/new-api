@@ -232,3 +232,27 @@ describe('usage facts billing details', () => {
     expect(screen.getByText('Total Cost')).toBeInTheDocument()
   })
 })
+
+test('shows recorded points and paid deductions while retaining the total cost', () => {
+  const queryClient = renderDetails({
+    billing_source: 'wallet',
+    bonus_quota: 1500,
+    paid_quota: 3500,
+  })
+  expect(rowValue('Deducted From')).toBe('Points / Paid Balance')
+  expect(rowValue('Points Deducted')).toBe('$0.003')
+  expect(rowValue('Balance Deducted')).toBe('$0.007')
+  expect(rowValue('Total Cost')).toBe('$0.01')
+  queryClient.clear()
+})
+
+test('does not attribute subscription costs to stale wallet splits', () => {
+  const queryClient = renderDetails({
+    billing_source: 'subscription',
+    bonus_quota: 1500,
+    paid_quota: 3500,
+  })
+  expect(screen.queryByText('Points Deducted')).not.toBeInTheDocument()
+  expect(screen.queryByText('Balance Deducted')).not.toBeInTheDocument()
+  queryClient.clear()
+})

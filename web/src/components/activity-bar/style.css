@@ -1,0 +1,34 @@
+.activity-bar-track {
+  animation: activity-scroll 28s linear infinite;
+}
+.activity-bar:hover .activity-bar-track {
+  animation-play-state: paused;
+}
+.activity-bar:focus-within {
+  overflow-x: auto;
+}
+.activity-bar:focus-within .activity-bar-track {
+  animation: none;
+}
+.activity-bar:focus-within .activity-bar-repeat {
+  display: none;
+}
+@keyframes activity-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .activity-bar {
+    overflow-x: auto;
+  }
+  .activity-bar-track {
+    animation: none;
+  }
+  .activity-bar-repeat {
+    display: none;
+  }
+}

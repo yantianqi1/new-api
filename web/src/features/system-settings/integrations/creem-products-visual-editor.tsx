@@ -71,6 +71,8 @@ export function CreemProductsVisualEditor({
         typeof item.productId === 'string' &&
         typeof item.price === 'number' &&
         typeof item.quota === 'number' &&
+        (!('commissionBaseQuota' in item) ||
+          typeof item.commissionBaseQuota === 'number') &&
         (item.currency === 'USD' || item.currency === 'EUR')
     )
   }, [value, t])
@@ -218,6 +220,15 @@ export function CreemProductsVisualEditor({
                 ),
               },
               {
+                id: 'commission-base-quota',
+                header: t('Commission Base Quota'),
+                cell: (product) => (
+                  <span className='font-mono text-sm'>
+                    {formatQuotaShort(product.commissionBaseQuota ?? 0)}
+                  </span>
+                ),
+              },
+              {
                 id: 'actions',
                 header: t('Actions'),
                 className: 'text-right',
@@ -288,6 +299,14 @@ export function CreemProductsVisualEditor({
                     </span>
                     <span className='font-mono'>
                       {formatQuotaShort(product.quota)}
+                    </span>
+                  </div>
+                  <div className='flex items-center gap-2'>
+                    <span className='text-muted-foreground min-w-16'>
+                      {t('Commission Base Quota')}:
+                    </span>
+                    <span className='font-mono'>
+                      {formatQuotaShort(product.commissionBaseQuota ?? 0)}
                     </span>
                   </div>
                 </div>

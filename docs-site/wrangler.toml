@@ -1,0 +1,15 @@
+name = "aiwanai-docs"
+compatibility_date = "2026-09-18"
+workers_dev = true
+
+# Starlight is a static site. Serve dist/ as Workers static assets.
+# Do not set `main`; the assets config is the entry.
+# Custom hostname docs.inkwan.app is attached via the Workers domains API
+# (this token cannot write zone worker routes).
+[assets]
+directory = "./dist"
+not_found_handling = "404-page"
+html_handling = "auto-trailing-slash"
+
+[observability]
+enabled = true

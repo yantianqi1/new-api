@@ -5,6 +5,8 @@ import (
 	"context"
 	"database/sql/driver"
 	"encoding/json"
+	"errors"
+	"gorm.io/gorm"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -116,11 +118,14 @@ type TaskPrivateData struct {
 	// other private task state so public task DTOs cannot expose it by accident.
 	Execution *TaskExecutionSnapshot `json:"execution,omitempty"`
 	// 计费上下文：用于异步退款/差额结算（轮询阶段读取）
-	BillingSource  string              `json:"billing_source,omitempty"`  // "wallet" 或 "subscription"
-	SubscriptionId int                 `json:"subscription_id,omitempty"` // 订阅 ID，用于订阅退款
-	TokenId        int                 `json:"token_id,omitempty"`        // 令牌 ID，用于令牌额度退款
-	NodeName       string              `json:"node_name,omitempty"`       // 发起任务的节点名，轮询结算阶段据此归属日志而非最后查询节点
-	BillingContext *TaskBillingContext `json:"billing_context,omitempty"` // 计费参数快照（用于轮询阶段重新计算）
+	BonusQuotaModel    bool                `json:"bonus_quota_model,omitempty"`
+	BonusQuotaConsumed int                 `json:"bonus_quota_consumed,omitempty"`
+	PaidQuotaConsumed  int                 `json:"paid_quota_consumed,omitempty"`
+	BillingSource      string              `json:"billing_source,omitempty"`  // "wallet" 或 "subscription"
+	SubscriptionId     int                 `json:"subscription_id,omitempty"` // 订阅 ID，用于订阅退款
+	TokenId            int                 `json:"token_id,omitempty"`        // 令牌 ID，用于令牌额度退款
+	NodeName           string              `json:"node_name,omitempty"`       // 发起任务的节点名，轮询结算阶段据此归属日志而非最后查询节点
+	BillingContext     *TaskBillingContext `json:"billing_context,omitempty"` // 计费参数快照（用于轮询阶段重新计算）
 	// ResponsesBackground records that the openai_responses create request
 	// asked for background:true. Every task is durable and survives client
 	// disconnect regardless; this only echoes the protocol-level request
@@ -212,6 +217,7 @@ func (p *TaskPrivateData) Scan(val any) error {
 func (p TaskPrivateData) Value() (driver.Value, error) {
 	if p.Key == "" && p.UpstreamTaskID == "" && p.ResultURL == "" &&
 		p.Execution == nil && p.BillingSource == "" && p.SubscriptionId == 0 &&
+		!p.BonusQuotaModel && p.BonusQuotaConsumed == 0 && p.PaidQuotaConsumed == 0 &&
 		p.TokenId == 0 && p.NodeName == "" && p.BillingContext == nil &&
 		!p.ResponsesBackground && len(p.PluginState) == 0 && p.PollFailures == 0 &&
 		!p.ResultDiscarded {
@@ -315,6 +321,9 @@ func TaskGetAllUserTask(userId int, startIdx int, num int, queryParams SyncTaskQ
 		return nil
 	}
 
+	for _, task := range tasks {
+		task.Properties.UpstreamModelName = ""
+	}
 	return tasks
 }
 
@@ -656,4 +665,75 @@ func (t *Task) ToOpenAIVideo() *dto.OpenAIVideo {
 		}
 	}
 	return openAIVideo
+}
+
+// SettleTaskBonusWallet commits the wallet movement and the task's source split
+// together, so another process or a restart cannot repeat a completed refund.
+func SettleTaskBonusWallet(task *Task, actualQuota int) error {
+	if task == nil || task.ID <= 0 || !task.PrivateData.BonusQuotaModel || actualQuota < 0 {
+		return errors.New("invalid bonus task settlement")
+	}
+	if err := common.ValidateWalletQuota(actualQuota); err != nil {
+		return err
+	}
+	previousQuota := task.Quota
+	private := task.PrivateData
+	if private.BonusQuotaConsumed < 0 || private.BonusQuotaConsumed > previousQuota || private.PaidQuotaConsumed != previousQuota-private.BonusQuotaConsumed {
+		return errors.New("task wallet split does not match its quota")
+	}
+	delta := actualQuota - previousQuota
+	if delta == 0 {
+		return nil
+	}
+	if delta > 0 {
+		_, _, ok, err := reserveUserBonusAndPaidQuota(task.UserId, delta, true, func(tx *gorm.DB, bonus, paid int) error {
+			private.BonusQuotaConsumed += bonus
+			private.PaidQuotaConsumed += paid
+			result := tx.Model(&Task{}).Where("id = ? AND quota = ?", task.ID, previousQuota).Updates(map[string]any{"quota": actualQuota, "private_data": private})
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected != 1 {
+				return errors.New("task quota changed during settlement")
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return errors.New("wallet quota insufficient")
+		}
+	} else {
+		paid := min(-delta, private.PaidQuotaConsumed)
+		bonus := -delta - paid
+		private.PaidQuotaConsumed -= paid
+		private.BonusQuotaConsumed -= bonus
+		err := DB.Transaction(func(tx *gorm.DB) error {
+			result := tx.Model(&User{}).Where("id = ? AND bonus_quota <= ? AND quota <= ?", task.UserId, common.MaxWalletQuota-bonus, common.MaxWalletQuota-paid).Updates(map[string]any{"bonus_quota": gorm.Expr("bonus_quota + ?", bonus), "quota": gorm.Expr("quota + ?", paid)})
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected != 1 {
+				return ErrWalletQuotaLimitExceeded
+			}
+			result = tx.Model(&Task{}).Where("id = ? AND quota = ?", task.ID, previousQuota).Updates(map[string]any{"quota": actualQuota, "private_data": private})
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected != 1 {
+				return errors.New("task quota changed during settlement")
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+		if err := cacheApplyUserWalletDelta(task.UserId, int64(bonus), int64(paid)); err != nil {
+			common.SysError(common.LogText("failed to sync task wallet refund: %s", err.Error()))
+		}
+	}
+	task.PrivateData = private
+	task.Quota = actualQuota
+	return nil
 }

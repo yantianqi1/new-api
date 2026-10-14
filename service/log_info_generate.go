@@ -193,6 +193,18 @@ func appendBillingInfo(relayInfo *relaycommon.RelayInfo, other *model.LogOther) 
 	if relayInfo.UserSetting.BillingPreference != "" {
 		other.SetPublic("billing_preference", relayInfo.UserSetting.BillingPreference)
 	}
+	if relayInfo.BillingSource != BillingSourceSubscription {
+		if relayInfo.BonusQuotaModel {
+			other.SetPublic("bonus_quota_model", true)
+		}
+		if relayInfo.BonusQuotaConsumed > 0 {
+			other.SetPublic("bonus_quota", relayInfo.BonusQuotaConsumed)
+			other.SetPublic("billing_marker", "free")
+		}
+		if relayInfo.PaidQuotaConsumed > 0 {
+			other.SetPublic("paid_quota", relayInfo.PaidQuotaConsumed)
+		}
+	}
 	if relayInfo.BillingSource == "subscription" {
 		if relayInfo.SubscriptionId != 0 {
 			other.SetPublic("subscription_id", relayInfo.SubscriptionId)

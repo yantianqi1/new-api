@@ -1,0 +1,250 @@
+---
+/**
+ * 自定义顶栏 —— 在 Starlight 默认布局上加「控制台」CTA
+ * 窄屏也保留控制台入口（splash 没有侧栏，不能只藏在移动菜单里）
+ */
+import config from 'virtual:starlight/user-config';
+
+import LanguageSelect from 'virtual:starlight/components/LanguageSelect';
+import Search from 'virtual:starlight/components/Search';
+import SiteTitle from 'virtual:starlight/components/SiteTitle';
+import SocialIcons from 'virtual:starlight/components/SocialIcons';
+import ThemeSelect from 'virtual:starlight/components/ThemeSelect';
+
+const shouldRenderSearch =
+	config.pagefind || config.components.Search !== '@astrojs/starlight/components/Search.astro';
+
+const lang = Astro.locals.starlightRoute?.lang || 'zh-CN';
+const isZh = !lang.startsWith('en');
+const consoleLabel = isZh ? '控制台' : 'Console';
+const consoleUrl = 'https://api.aiwanai.cc';
+const consoleAria = isZh ? '打开控制台（新窗口）' : 'Open console (opens in a new tab)';
+---
+
+<div class="header">
+	<div class="title-wrapper sl-flex">
+		<SiteTitle />
+	</div>
+	<div class="sl-flex print:hidden">
+		{shouldRenderSearch && <Search />}
+	</div>
+	<div class="sl-flex print:hidden right-group">
+		<a class="aw-console-btn" href={consoleUrl} target="_blank" rel="noreferrer" aria-label={consoleAria}>
+			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+				<rect x="3" y="4" width="18" height="16" rx="2.5" stroke="currentColor" stroke-width="1.9"/>
+				<path d="M7.5 9.5l2.2 2.5-2.2 2.5M12.5 15h4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+			</svg>
+			<span>{consoleLabel}</span>
+		</a>
+		{/* splash 没有侧栏/汉堡菜单，语言切换必须留在顶栏；有侧栏的文档页窄屏走 MobileMenuFooter */}
+		<div class="aw-lang">
+			<LanguageSelect />
+		</div>
+		<div class="sl-hidden md:sl-flex extras">
+			<div class="sl-flex social-icons">
+				<SocialIcons />
+			</div>
+			<ThemeSelect />
+		</div>
+	</div>
+</div>
+<div class="aw-live" aria-live="polite" aria-atomic="true"></div>
+
+<style>
+	@layer starlight.core {
+		.header {
+			display: flex;
+			gap: var(--sl-nav-gap);
+			justify-content: space-between;
+			align-items: center;
+			height: 100%;
+			min-width: 0;
+		}
+
+		.title-wrapper {
+			overflow: hidden;
+			padding: 0.25rem;
+			margin: -0.25rem;
+			min-width: 0;
+		}
+		.title-wrapper :global(.site-title span) {
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+		@media (max-width: 22rem) {
+			.title-wrapper :global(.site-title span) {
+				position: absolute;
+				width: 1px;
+				height: 1px;
+				padding: 0;
+				margin: -1px;
+				overflow: hidden;
+				clip: rect(0, 0, 0, 0);
+				white-space: nowrap;
+				border: 0;
+				text-overflow: clip;
+			}
+		}
+
+		.right-group,
+		.extras,
+		.social-icons {
+			gap: 0.85rem;
+			align-items: center;
+		}
+		@media (max-width: 40rem) {
+			.right-group { gap: 0.4rem; }
+		}
+		.social-icons::after {
+			content: '';
+			height: 2rem;
+			border-inline-end: 1px solid var(--sl-color-gray-5);
+		}
+
+		.aw-lang {
+			display: flex;
+			align-items: center;
+			flex: none;
+			min-width: 0;
+		}
+		@media (max-width: 49.99rem) {
+			:global(:root[data-has-sidebar]) .aw-lang {
+				display: none;
+			}
+			:global(:root[data-has-sidebar]) .aw-console-btn {
+				display: none;
+			}
+		}
+		@media (max-width: 40rem) {
+			.aw-lang :global(label) {
+				--sl-select-width: 1.25rem !important;
+			}
+			.aw-lang :global(select) {
+				width: 2.75rem !important;
+				min-height: 2.75rem;
+				color: transparent;
+			}
+			.aw-lang :global(.caret) {
+				display: none;
+			}
+		}
+
+		.aw-console-btn {
+			position: relative;
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			gap: 0.4em;
+			flex: none;
+			min-height: 2.75rem;
+			min-width: 2.75rem;
+			padding: 0.32rem 0.8rem;
+			border-radius: 999rem;
+			font-size: var(--sl-text-sm);
+			font-weight: 700;
+			letter-spacing: -0.005em;
+			text-decoration: none;
+			white-space: nowrap;
+			color: #fff;
+			background: var(--aw-grad-btn, linear-gradient(180deg, hsl(255 82% 64%), hsl(226 84% 56%)));
+			border: 1px solid var(--aw-btn-border, hsl(255 70% 58%));
+			box-shadow:
+				0 1px 0 hsl(0 0% 100% / 0.28) inset,
+				0 4px 12px var(--aw-btn-shadow, hsl(245 70% 55% / 0.28));
+			transition: box-shadow 160ms var(--aw-ease-out, ease), transform 120ms var(--aw-ease-out, ease);
+		}
+		@media (max-width: 40rem) {
+			.aw-console-btn {
+				padding-inline: 0.7rem;
+			}
+			.aw-console-btn span {
+				position: absolute;
+				width: 1px;
+				height: 1px;
+				padding: 0;
+				margin: -1px;
+				overflow: hidden;
+				clip: rect(0, 0, 0, 0);
+				white-space: nowrap;
+				border: 0;
+			}
+		}
+		.aw-console-btn:active {
+			transform: scale(0.97);
+		}
+		@media (hover: hover) and (pointer: fine) {
+			.aw-console-btn:hover {
+				box-shadow:
+					0 1px 0 hsl(0 0% 100% / 0.32) inset,
+					0 8px 18px hsl(245 72% 56% / 0.4);
+			}
+		}
+
+		@media (min-width: 50rem) {
+			:global(:root[data-has-sidebar]) {
+				--__sidebar-pad: calc(2 * var(--sl-nav-pad-x));
+			}
+			:global(:root:not([data-has-toc])) {
+				--__toc-width: 0rem;
+			}
+			.header {
+				--__sidebar-width: max(0rem, var(--sl-content-inline-start, 0rem) - var(--sl-nav-pad-x));
+				--__main-column-fr: calc(
+					(
+							100% + var(--__sidebar-pad, 0rem) - var(--__toc-width, var(--sl-sidebar-width)) -
+								(2 * var(--__toc-width, var(--sl-nav-pad-x))) - var(--sl-content-inline-start, 0rem) -
+								var(--sl-content-width)
+						) / 2
+				);
+				display: grid;
+				grid-template-columns:
+					minmax(
+						calc(var(--__sidebar-width) + max(0rem, var(--__main-column-fr) - var(--sl-nav-gap))),
+						auto
+					)
+					1fr
+					auto;
+				align-content: center;
+			}
+		}
+	}
+</style>
+
+<script>
+	document.querySelectorAll<HTMLButtonElement>('[data-copied]').forEach((btn) => {
+		if (!btn.getAttribute('aria-label')) {
+			btn.setAttribute('aria-label', btn.getAttribute('title') || 'Copy code');
+		}
+	});
+
+	const live = document.querySelector('.aw-live');
+	document.addEventListener('click', async (event) => {
+		const btn = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>('[data-copy]');
+		if (!btn) return;
+		const text = btn.dataset.copy || '';
+		const label = btn.querySelector('.copy-label');
+		try {
+			await navigator.clipboard.writeText(text);
+		} catch {
+			const ta = document.createElement('textarea');
+			ta.value = text;
+			ta.style.position = 'fixed';
+			ta.style.opacity = '0';
+			document.body.appendChild(ta);
+			ta.select();
+			document.execCommand('copy');
+			ta.remove();
+		}
+		btn.classList.add('is-done', 'done');
+		const prev = label?.textContent;
+		const copied = btn.dataset.copied || 'Copied';
+		if (label) label.textContent = copied;
+		if (live) live.textContent = copied;
+		window.setTimeout(() => {
+			btn.classList.remove('is-done', 'done');
+			if (label && prev) label.textContent = prev;
+			if (live) live.textContent = '';
+		}, 1600);
+	});
+</script>

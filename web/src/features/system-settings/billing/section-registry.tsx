@@ -25,6 +25,7 @@ import { PaymentSettingsSection } from '../integrations/payment-settings-section
 import { RatioSettingsCard } from '../models/ratio-settings-card'
 import type { BillingSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
+import { PromotionsSection } from './promotions-section'
 
 const getModelDefaults = (settings: BillingSettings) => ({
   ModelPrice: settings.ModelPrice,
@@ -35,6 +36,7 @@ const getModelDefaults = (settings: BillingSettings) => ({
   ImageRatio: settings.ImageRatio,
   AudioRatio: settings.AudioRatio,
   AudioCompletionRatio: settings.AudioCompletionRatio,
+  BonusQuotaModels: settings.BonusQuotaModels,
   ExposeRatioEnabled: settings.ExposeRatioEnabled,
   BillingMode: settings['billing_setting.billing_mode'],
   BillingExpr: settings['billing_setting.billing_expr'],
@@ -55,6 +57,13 @@ const getGroupDefaults = (settings: BillingSettings) => ({
 
 const BILLING_SECTIONS = [
   {
+    id: 'promotions',
+    titleKey: 'Promotions',
+    build: (settings: BillingSettings) => (
+      <PromotionsSection defaultValues={settings} />
+    ),
+  },
+  {
     id: 'quota',
     titleKey: 'Quota Settings',
     build: (settings: BillingSettings) => (
@@ -64,6 +73,9 @@ const BILLING_SECTIONS = [
           QuotaForInviter: settings.QuotaForInviter,
           QuotaForInvitee: settings.QuotaForInvitee,
           TopUpLink: settings.TopUpLink,
+          general_setting: {
+            model_square_link: settings['general_setting.model_square_link'],
+          },
           quota_setting: {
             trust_quota_usd: settings['quota_setting.trust_quota_usd'],
             pre_consume_multiplier:
@@ -143,6 +155,10 @@ const BILLING_SECTIONS = [
           PayMethods: settings.PayMethods,
           AmountOptions: settings['payment_setting.amount_options'],
           AmountDiscount: settings['payment_setting.amount_discount'],
+          AffiliateCommissionRatePercent:
+            (settings[
+              'payment_setting.affiliate_commission_rate_basis_points'
+            ] ?? 0) / 100,
           StripeApiSecret: settings.StripeApiSecret,
           StripeWebhookSecret: settings.StripeWebhookSecret,
           StripePriceId: settings.StripePriceId,

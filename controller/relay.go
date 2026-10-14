@@ -620,6 +620,20 @@ func executeTaskSubmissionWith(
 	task.PrivateData.UpstreamTaskID = result.UpstreamTaskID
 	task.PrivateData.BillingSource = relayInfo.BillingSource
 	task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
+	if relayInfo.BonusQuotaModel && relayInfo.BillingSource == service.BillingSourceWallet {
+		task.PrivateData.BonusQuotaModel = true
+		task.PrivateData.BonusQuotaConsumed = relayInfo.BonusQuotaConsumed
+		task.PrivateData.PaidQuotaConsumed = relayInfo.PaidQuotaConsumed
+		// Submit-time downward adjustments are refunded after insertion.
+		// Persist the resulting source split, using the same paid-first refund
+		// order as the live funding session.
+		refund := task.PrivateData.BonusQuotaConsumed + task.PrivateData.PaidQuotaConsumed - result.Quota
+		if refund > 0 {
+			paidRefund := min(refund, task.PrivateData.PaidQuotaConsumed)
+			task.PrivateData.PaidQuotaConsumed -= paidRefund
+			task.PrivateData.BonusQuotaConsumed -= refund - paidRefund
+		}
+	}
 	task.PrivateData.TokenId = relayInfo.TokenId
 	task.PrivateData.NodeName = common.NodeName
 	task.PrivateData.BillingContext = &model.TaskBillingContext{

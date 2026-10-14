@@ -337,6 +337,34 @@ function BillingBreakdown(props: {
     })
   }
 
+  if (other.billing_source !== 'subscription') {
+    const bonusQuota = other.bonus_quota ?? 0
+    const paidQuota = other.paid_quota ?? 0
+    if (bonusQuota > 0 || paidQuota > 0) {
+      rows.push({
+        label: t('Deducted From'),
+        value: [
+          bonusQuota > 0 ? t('Points') : '',
+          paidQuota > 0 ? t('Paid Balance') : '',
+        ]
+          .filter(Boolean)
+          .join(' / '),
+      })
+    }
+    if (bonusQuota > 0) {
+      rows.push({
+        label: t('Points Deducted'),
+        value: formatLogQuota(bonusQuota),
+      })
+    }
+    if (paidQuota > 0) {
+      rows.push({
+        label: t('Balance Deducted'),
+        value: formatLogQuota(paidQuota),
+      })
+    }
+  }
+
   const usageFacts =
     other.usage_facts != null &&
     typeof other.usage_facts === 'object' &&

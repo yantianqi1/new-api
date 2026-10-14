@@ -84,6 +84,12 @@ func AddRedemption(c *gin.Context) {
 		common.ApiErrorT(c, "Maximum 100 redemption codes can be generated at once")
 		return
 	}
+	if redemption.MaxUses < 0 || redemption.MaxUses > model.RedemptionMaxUsesLimit {
+		common.ApiErrorT(c, "Redemption code maximum uses must be between 1 and 100000")
+		return
+	}
+	redemption.NormalizeUsageLimits()
+	redemption.NormalizeQuotaType()
 	if redemption.Quota <= 0 {
 		common.ApiErrorT(c, "Redemption quota must be positive")
 		return
@@ -97,7 +103,7 @@ func AddRedemption(c *gin.Context) {
 		return
 	}
 	var keys []string
-	for i := 0; i < redemption.Count; i++ {
+	for range redemption.Count {
 		key := common.GetUUID()
 		cleanRedemption := model.Redemption{
 			UserId:      c.GetInt("id"),
@@ -105,6 +111,8 @@ func AddRedemption(c *gin.Context) {
 			Key:         key,
 			CreatedTime: common.GetTimestamp(),
 			Quota:       redemption.Quota,
+			QuotaType:   redemption.QuotaType,
+			MaxUses:     redemption.MaxUses,
 			ExpiredTime: redemption.ExpiredTime,
 		}
 		err = cleanRedemption.Insert()
@@ -116,9 +124,11 @@ func AddRedemption(c *gin.Context) {
 		keys = append(keys, key)
 	}
 	recordManageAudit(c, "redemption.create", map[string]any{
-		"name":  redemption.Name,
-		"count": redemption.Count,
-		"quota": logger.FormatQuota(redemption.Quota),
+		"name":       redemption.Name,
+		"count":      redemption.Count,
+		"quota":      logger.FormatQuota(redemption.Quota),
+		"quota_type": redemption.QuotaType,
+		"max_uses":   redemption.MaxUses,
 	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -171,6 +181,23 @@ func UpdateRedemption(c *gin.Context) {
 		// If you add more fields, please also update redemption.Update()
 		cleanRedemption.Name = redemption.Name
 		cleanRedemption.Quota = redemption.Quota
+		if redemption.QuotaType != "" {
+			cleanRedemption.QuotaType = redemption.QuotaType
+			cleanRedemption.NormalizeQuotaType()
+		}
+		if redemption.MaxUses < 0 || redemption.MaxUses > model.RedemptionMaxUsesLimit || (redemption.MaxUses != 0 && redemption.MaxUses < cleanRedemption.UsedCount) {
+			common.ApiErrorT(c, "Redemption code maximum uses must be between 1 and 100000")
+			return
+		}
+		if redemption.MaxUses > 0 {
+			cleanRedemption.MaxUses = redemption.MaxUses
+			if cleanRedemption.Status != common.RedemptionCodeStatusDisabled {
+				cleanRedemption.Status = common.RedemptionCodeStatusEnabled
+				if cleanRedemption.UsedCount >= cleanRedemption.MaxUses {
+					cleanRedemption.Status = common.RedemptionCodeStatusUsed
+				}
+			}
+		}
 		cleanRedemption.ExpiredTime = redemption.ExpiredTime
 	}
 	if statusOnly != "" {

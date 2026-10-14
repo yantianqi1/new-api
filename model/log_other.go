@@ -244,6 +244,14 @@ func formatLogOtherJSON(value string, visibility logOtherVisibility) string {
 
 	changed := false
 	if visibility == logOtherVisibilityUser {
+		if common.HideUserLogUpstreamModelEnabled {
+			for _, key := range []string{"is_model_mapped", "upstream_model_name", "response_model"} {
+				if _, exists := values[key]; exists {
+					delete(values, key)
+					changed = true
+				}
+			}
+		}
 		for _, key := range []string{logOtherAdminInfoKey, logOtherRootInfoKey, logOtherAuditInfoKey} {
 			if _, exists := values[key]; exists {
 				delete(values, key)

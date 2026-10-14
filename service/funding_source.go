@@ -50,7 +50,7 @@ func (w *WalletFunding) PreConsume(amount int) error {
 	if !reserved {
 		return ErrInsufficientWalletQuota
 	}
-	w.consumed = amount
+	w.consumed += amount
 	return nil
 }
 
@@ -71,6 +71,60 @@ func (w *WalletFunding) Refund() error {
 	// IncreaseUserQuota 是 quota += N 的非幂等操作，不能重试，否则会多退额度。
 	// 订阅的 RefundSubscriptionPreConsume 有 requestId 幂等保护所以可以重试。
 	return model.IncreaseUserQuota(w.userId, w.consumed, false)
+}
+
+// BonusWalletFunding keeps the reservation split so refunds restore its sources.
+type BonusWalletFunding struct {
+	userId           int
+	bonusConsumed    int
+	paidConsumed     int
+	bonusPreConsumed int
+	paidPreConsumed  int
+}
+
+func (w *BonusWalletFunding) Source() string              { return BillingSourceWallet }
+func (w *BonusWalletFunding) PreConsume(amount int) error { return w.consume(amount, true) }
+func (w *BonusWalletFunding) Settle(delta int) error {
+	if delta > 0 {
+		return w.consume(delta, false)
+	}
+	return w.refund(-delta)
+}
+func (w *BonusWalletFunding) Refund() error { return w.refund(w.bonusConsumed + w.paidConsumed) }
+func (w *BonusWalletFunding) consume(amount int, recordPreConsume bool) error {
+	if amount <= 0 {
+		return nil
+	}
+	bonus, paid, ok, err := model.TryReserveUserBonusAndPaidQuota(w.userId, amount, true)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrInsufficientWalletQuota
+	}
+	w.bonusConsumed += bonus
+	w.paidConsumed += paid
+	if recordPreConsume {
+		w.bonusPreConsumed += bonus
+		w.paidPreConsumed += paid
+	}
+	return nil
+}
+func (w *BonusWalletFunding) refund(amount int) error {
+	if amount <= 0 {
+		return nil
+	}
+	if amount > w.bonusConsumed+w.paidConsumed {
+		return errors.New("refund exceeds wallet reservation")
+	}
+	paid := min(amount, w.paidConsumed)
+	bonus := amount - paid
+	if err := model.RefundUserBonusAndPaidQuota(w.userId, bonus, paid); err != nil {
+		return err
+	}
+	w.paidConsumed -= paid
+	w.bonusConsumed -= bonus
+	return nil
 }
 
 // ---------------------------------------------------------------------------

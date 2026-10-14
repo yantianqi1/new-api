@@ -62,7 +62,8 @@ const defaultPaymentAmountCalculators: PaymentAmountCalculators = {
 export async function requestPaymentAmount(
   topupAmount: number,
   paymentType: string,
-  calculators: PaymentAmountCalculators = defaultPaymentAmountCalculators
+  calculators: PaymentAmountCalculators = defaultPaymentAmountCalculators,
+  options?: { tier_id?: string; bargain_activity_id?: number }
 ): Promise<number> {
   let calculator = calculators.regular
   if (isStripePayment(paymentType)) {
@@ -73,7 +74,17 @@ export async function requestPaymentAmount(
     calculator = calculators.waffoPancake
   }
 
-  const response = await calculator({ amount: topupAmount })
+  if (options?.tier_id || options?.bargain_activity_id) {
+    calculator = calculators.regular
+  }
+  const response = await calculator({
+    amount:
+      options?.tier_id || options?.bargain_activity_id
+        ? Math.floor(topupAmount)
+        : topupAmount,
+    tier_id: options?.tier_id,
+    bargain_activity_id: options?.bargain_activity_id,
+  })
   if (!isApiSuccess(response) || !response.data) {
     return 0
   }
@@ -88,12 +99,18 @@ export function usePayment() {
 
   // Calculate payment amount
   const calculatePaymentAmount = useCallback(
-    async (topupAmount: number, paymentType: string) => {
+    async (
+      topupAmount: number,
+      paymentType: string,
+      options?: { tier_id?: string; bargain_activity_id?: number }
+    ) => {
       try {
         setCalculating(true)
         const calculatedAmount = await requestPaymentAmount(
           topupAmount,
-          paymentType
+          paymentType,
+          defaultPaymentAmountCalculators,
+          options
         )
         setAmount(calculatedAmount)
         return calculatedAmount
@@ -109,7 +126,11 @@ export function usePayment() {
 
   // Process payment
   const processPayment = useCallback(
-    async (topupAmount: number, paymentType: string) => {
+    async (
+      topupAmount: number,
+      paymentType: string,
+      options?: { tier_id?: string; bargain_activity_id?: number }
+    ) => {
       try {
         setProcessing(true)
 
@@ -120,10 +141,13 @@ export function usePayment() {
           ? await requestStripePayment({
               amount,
               payment_method: 'stripe',
+              tier_id: options?.tier_id,
             })
           : await requestPayment({
               amount,
               payment_method: paymentType,
+              tier_id: options?.tier_id,
+              bargain_activity_id: options?.bargain_activity_id,
             })
 
         if (!isApiSuccess(response)) {

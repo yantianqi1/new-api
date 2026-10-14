@@ -112,7 +112,11 @@ export function isWaffoPancakePayment(paymentType: string): boolean {
 }
 
 export interface PaymentProcessors {
-  regular: (topupAmount: number, paymentType: string) => Promise<boolean>
+  regular: (
+    topupAmount: number,
+    paymentType: string,
+    options?: { tier_id?: string; bargain_activity_id?: number }
+  ) => Promise<boolean>
   waffo: (topupAmount: number, payMethodIndex: number) => Promise<boolean>
   waffoPancake: (topupAmount: number) => Promise<boolean>
 }
@@ -121,8 +125,18 @@ export async function dispatchSelectedPayment(
   paymentMethod: PaymentMethod,
   topupAmount: number,
   waffoMethodIndex: number | null,
-  processors: PaymentProcessors
+  processors: PaymentProcessors,
+  options?: { tier_id?: string; bargain_activity_id?: number }
 ): Promise<boolean> {
+  if (
+    (options?.tier_id || options?.bargain_activity_id) &&
+    (isStripePayment(paymentMethod.type) ||
+      isWaffoPayment(paymentMethod.type) ||
+      isWaffoPancakePayment(paymentMethod.type))
+  ) {
+    return false
+  }
+
   if (isWaffoPayment(paymentMethod.type)) {
     if (waffoMethodIndex === null) {
       return false
@@ -134,7 +148,7 @@ export async function dispatchSelectedPayment(
     return processors.waffoPancake(topupAmount)
   }
 
-  return processors.regular(topupAmount, paymentMethod.type)
+  return processors.regular(topupAmount, paymentMethod.type, options)
 }
 
 /**

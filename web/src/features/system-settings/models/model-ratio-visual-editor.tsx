@@ -84,6 +84,7 @@ type ModelRatioVisualEditorProps = {
   savedImageRatio: string
   savedAudioRatio: string
   savedAudioCompletionRatio: string
+  savedBonusQuotaModels?: string
   savedBillingMode: string
   savedBillingExpr: string
   savedPluginBillingExpr?: string
@@ -95,6 +96,7 @@ type ModelRatioVisualEditorProps = {
   imageRatio: string
   audioRatio: string
   audioCompletionRatio: string
+  bonusQuotaModels?: string
   billingMode: string
   billingExpr: string
   pluginBillingExpr?: string
@@ -125,6 +127,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
     savedImageRatio,
     savedAudioRatio,
     savedAudioCompletionRatio,
+    savedBonusQuotaModels = '{}',
     savedBillingMode,
     savedBillingExpr,
     savedPluginBillingExpr = '{}',
@@ -136,6 +139,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
     imageRatio,
     audioRatio,
     audioCompletionRatio,
+    bonusQuotaModels = '{}',
     billingMode,
     billingExpr,
     pluginBillingExpr = '{}',
@@ -237,6 +241,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       imageRatio: savedImageRatio,
       audioRatio: savedAudioRatio,
       audioCompletionRatio: savedAudioCompletionRatio,
+      bonusQuotaModels: savedBonusQuotaModels,
       billingMode: savedBillingMode,
       billingExpr: savedBillingExpr,
       pluginBillingExpr: savedPluginBillingExpr,
@@ -250,6 +255,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       imageRatio,
       audioRatio,
       audioCompletionRatio,
+      bonusQuotaModels,
       billingMode,
       billingExpr,
       pluginBillingExpr,
@@ -294,6 +300,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
     savedImageRatio,
     savedAudioRatio,
     savedAudioCompletionRatio,
+    savedBonusQuotaModels,
     savedBillingMode,
     savedBillingExpr,
     savedPluginBillingExpr,
@@ -305,6 +312,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
     imageRatio,
     audioRatio,
     audioCompletionRatio,
+    bonusQuotaModels,
     billingMode,
     billingExpr,
     pluginBillingExpr,
@@ -335,6 +343,18 @@ const ModelRatioVisualEditorComponent = forwardRef<
     return counts
   }, [models, taskModelNames])
 
+  const bonusQuotaCounts = useMemo(
+    () =>
+      models.reduce(
+        (acc, model) => {
+          acc[model.bonusQuotaEnabled ? 'true' : 'false'] += 1
+          return acc
+        },
+        { true: 0, false: 0 }
+      ),
+    [models]
+  )
+
   const handleEdit = useCallback(
     (model: ModelRow) => {
       const editableModel = model.draft ?? model.saved ?? model
@@ -358,6 +378,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
         billingExpr: editableModel.billingExpr,
         pluginBillingExpr: editableModel.pluginBillingExpr,
         requestRuleExpr: editableModel.requestRuleExpr,
+        bonusQuotaEnabled: editableModel.bonusQuotaEnabled,
       })
       setEditorOpen(true)
       if (isMobile) setSheetOpen(true)
@@ -472,6 +493,12 @@ const ModelRatioVisualEditorComponent = forwardRef<
         'billing_setting.billing_expr',
         JSON.stringify(billingExprMap, null, 2)
       )
+      const bonusQuotaMap = safeJsonParse<Record<string, boolean>>(
+        bonusQuotaModels,
+        { fallback: {}, silent: true }
+      )
+      delete bonusQuotaMap[name]
+      onChange('BonusQuotaModels', JSON.stringify(bonusQuotaMap, null, 2))
 
       if (editingModelNameRef.current === name) {
         setEditData(null)
@@ -488,6 +515,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       imageRatio,
       audioRatio,
       audioCompletionRatio,
+      bonusQuotaModels,
       billingMode,
       billingExpr,
       pluginBillingExpr,
@@ -557,6 +585,18 @@ const ModelRatioVisualEditorComponent = forwardRef<
       })
       const updated = applyPricingDraft(options, data, targetNames)
       for (const [key, value] of Object.entries(updated)) onChange(key, value)
+
+      const bonusQuotaMap = safeJsonParse<Record<string, boolean>>(
+        bonusQuotaModels,
+        { fallback: {}, silent: true }
+      )
+      targetNames.forEach((name) => {
+        delete bonusQuotaMap[name]
+        if (data.bonusQuotaEnabled) {
+          bonusQuotaMap[name] = true
+        }
+      })
+      onChange('BonusQuotaModels', JSON.stringify(bonusQuotaMap, null, 2))
     },
     [
       modelPrice,
@@ -570,6 +610,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       billingMode,
       billingExpr,
       pluginBillingExpr,
+      bonusQuotaModels,
       onChange,
     ]
   )
@@ -610,6 +651,45 @@ const ModelRatioVisualEditorComponent = forwardRef<
       })
     )
   }, [editData, editorOpen, persistPricingData, t, table])
+
+  const handleBatchBonusQuota = useCallback(
+    (enabled: boolean) => {
+      const targetNames = table
+        .getFilteredSelectedRowModel()
+        .rows.map((row) => row.original.name)
+
+      if (targetNames.length === 0) {
+        toast.error(t('Select at least one target model'))
+        return
+      }
+
+      const bonusQuotaMap = safeJsonParse<Record<string, boolean>>(
+        bonusQuotaModels,
+        { fallback: {}, silent: true }
+      )
+
+      targetNames.forEach((name) => {
+        if (enabled) {
+          bonusQuotaMap[name] = true
+        } else {
+          delete bonusQuotaMap[name]
+        }
+      })
+
+      onChange('BonusQuotaModels', JSON.stringify(bonusQuotaMap, null, 2))
+      table.resetRowSelection()
+      toast.success(
+        enabled
+          ? t('Enabled points deduction for {{count}} models', {
+              count: targetNames.length,
+            })
+          : t('Disabled points deduction for {{count}} models', {
+              count: targetNames.length,
+            })
+      )
+    },
+    [bonusQuotaModels, onChange, t, table]
+  )
 
   useImperativeHandle(
     ref,
@@ -676,6 +756,22 @@ const ModelRatioVisualEditorComponent = forwardRef<
                   },
                 ],
               },
+              {
+                columnId: 'bonusQuotaEnabled',
+                title: t('Points deduction'),
+                options: [
+                  {
+                    label: t('Allowed'),
+                    value: 'true',
+                    count: bonusQuotaCounts.true,
+                  },
+                  {
+                    label: t('Not allowed'),
+                    value: 'false',
+                    count: bonusQuotaCounts.false,
+                  },
+                ],
+              },
             ]}
             preActions={
               filterMode === 'unset' ? undefined : (
@@ -711,6 +807,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
                 <colgroup>
                   <col className='w-9' />
                   <col className='w-[300px]' />
+                  <col className='w-[120px]' />
                   <col className='w-[120px]' />
                   <col className='w-[300px]' />
                   <col className='w-auto' />
@@ -785,6 +882,16 @@ const ModelRatioVisualEditorComponent = forwardRef<
       </div>
 
       <DataTableBulkActions table={table} entityName={t('model')}>
+        <Button size='sm' onClick={() => handleBatchBonusQuota(true)}>
+          {t('Allow points')}
+        </Button>
+        <Button
+          size='sm'
+          variant='outline'
+          onClick={() => handleBatchBonusQuota(false)}
+        >
+          {t('Disallow points')}
+        </Button>
         <Button size='sm' disabled={!editData} onClick={handleBatchCopy}>
           <Copy data-icon='inline-start' />
           {editData
@@ -831,6 +938,7 @@ export const ModelRatioVisualEditor = memo(
       prevProps.savedAudioRatio === nextProps.savedAudioRatio &&
       prevProps.savedAudioCompletionRatio ===
         nextProps.savedAudioCompletionRatio &&
+      prevProps.savedBonusQuotaModels === nextProps.savedBonusQuotaModels &&
       prevProps.savedBillingMode === nextProps.savedBillingMode &&
       prevProps.savedBillingExpr === nextProps.savedBillingExpr &&
       prevProps.savedPluginBillingExpr === nextProps.savedPluginBillingExpr &&
@@ -842,6 +950,7 @@ export const ModelRatioVisualEditor = memo(
       prevProps.imageRatio === nextProps.imageRatio &&
       prevProps.audioRatio === nextProps.audioRatio &&
       prevProps.audioCompletionRatio === nextProps.audioCompletionRatio &&
+      prevProps.bonusQuotaModels === nextProps.bonusQuotaModels &&
       prevProps.billingMode === nextProps.billingMode &&
       prevProps.billingExpr === nextProps.billingExpr &&
       prevProps.pluginBillingExpr === nextProps.pluginBillingExpr &&

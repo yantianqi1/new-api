@@ -41,6 +41,8 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import {
   Sheet,
   SheetClose,
@@ -64,7 +66,7 @@ import { handleServerError } from '@/lib/handle-server-error'
 import { addTimeToDate } from '@/lib/time'
 
 import { createRedemption, updateRedemption, getRedemption } from '../api'
-import { SUCCESS_MESSAGES } from '../constants'
+import { REDEMPTION_QUOTA_TYPES, SUCCESS_MESSAGES } from '../constants'
 import {
   getRedemptionFormSchema,
   type RedemptionFormValues,
@@ -72,7 +74,11 @@ import {
   transformFormDataToPayload,
   transformRedemptionToFormDefaults,
 } from '../lib'
-import type { Redemption } from '../types'
+import {
+  REDEMPTION_QUOTA_TYPE_VALUES,
+  type Redemption,
+  type RedemptionQuotaType,
+} from '../types'
 import {
   RedemptionsExportDialog,
   type RedemptionExportData,
@@ -345,6 +351,87 @@ export function RedemptionsMutateDrawer({
                       </FormItem>
                     )}
                   />
+
+                  <FormField
+                    control={form.control}
+                    name='max_uses'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Uses per code')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type='number'
+                            min={Math.max(currentRow?.used_count ?? 0, 1)}
+                            max='100000'
+                            onChange={(event) =>
+                              field.onChange(
+                                Number.parseInt(event.target.value, 10) || 1
+                              )
+                            }
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Each code can be redeemed by up to this many different users. Each user can redeem it once.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {!isUpdate && (
+                    <FormField
+                      control={form.control}
+                      name='quota_type'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('Redemption balance type')}</FormLabel>
+                          <FormControl>
+                            <RadioGroup
+                              value={field.value}
+                              onValueChange={(value) =>
+                                field.onChange(value as RedemptionQuotaType)
+                              }
+                              className='grid gap-2 sm:grid-cols-2'
+                            >
+                              {REDEMPTION_QUOTA_TYPE_VALUES.map((type) => {
+                                const config = REDEMPTION_QUOTA_TYPES[type]
+                                return (
+                                  <Label
+                                    key={type}
+                                    htmlFor={`redemption-quota-type-${type}`}
+                                    className='hover:border-primary/40 focus-within:border-primary/50 has-data-[checked]:border-primary has-data-[checked]:ring-primary/20 border-muted flex cursor-pointer items-start gap-3 rounded-lg border p-3 font-normal transition-all has-data-[checked]:ring-2'
+                                  >
+                                    <RadioGroupItem
+                                      id={`redemption-quota-type-${type}`}
+                                      value={type}
+                                      className='mt-0.5'
+                                    />
+                                    <span className='flex min-w-0 flex-col gap-1'>
+                                      <span className='text-sm font-medium'>
+                                        {t(config.optionLabelKey)}
+                                      </span>
+                                      <span className='text-muted-foreground text-xs leading-5'>
+                                        {t(config.descriptionKey)}
+                                      </span>
+                                    </span>
+                                  </Label>
+                                )
+                              })}
+                            </RadioGroup>
+                          </FormControl>
+                          <FormDescription>
+                            {t(
+                              'Choose what balance this redemption code credits.'
+                            )}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
 
                   <FormField
                     control={form.control}

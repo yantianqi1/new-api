@@ -59,6 +59,7 @@ type ModelFormValues = {
   ImageRatio: string
   AudioRatio: string
   AudioCompletionRatio: string
+  BonusQuotaModels: string
   ExposeRatioEnabled: boolean
   BillingMode: string
   BillingExpr: string
@@ -84,6 +85,7 @@ type ModelJsonFieldName =
   | 'ImageRatio'
   | 'AudioRatio'
   | 'AudioCompletionRatio'
+  | 'BonusQuotaModels'
 
 const modelJsonFields: Array<{
   name: ModelJsonFieldName
@@ -133,6 +135,12 @@ const modelJsonFields: Array<{
     name: 'AudioCompletionRatio',
     labelKey: 'Audio completion ratio',
     descriptionKey: 'Ratio applied to audio completions for streaming models.',
+  },
+  {
+    name: 'BonusQuotaModels',
+    labelKey: 'Points deduction models',
+    descriptionKey:
+      'JSON map of model → true. Enabled models consume points first and paid balance when points are insufficient.',
   },
 ]
 
@@ -315,6 +323,7 @@ export const ModelRatioForm = memo(function ModelRatioForm({
               savedImageRatio={savedValues.ImageRatio}
               savedAudioRatio={savedValues.AudioRatio}
               savedAudioCompletionRatio={savedValues.AudioCompletionRatio}
+              savedBonusQuotaModels={savedValues.BonusQuotaModels}
               savedBillingMode={savedValues.BillingMode}
               savedBillingExpr={savedValues.BillingExpr}
               savedPluginBillingExpr={savedValues.PluginBillingExpr}
@@ -326,6 +335,7 @@ export const ModelRatioForm = memo(function ModelRatioForm({
               imageRatio={form.watch('ImageRatio')}
               audioRatio={form.watch('AudioRatio')}
               audioCompletionRatio={form.watch('AudioCompletionRatio')}
+              bonusQuotaModels={form.watch('BonusQuotaModels')}
               billingMode={form.watch('BillingMode')}
               billingExpr={form.watch('BillingExpr')}
               pluginBillingExpr={form.watch('PluginBillingExpr')}

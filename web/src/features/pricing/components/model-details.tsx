@@ -38,6 +38,7 @@ import { StaticDataTable } from '@/components/data-table'
 import { sideDrawerContentClassName } from '@/components/drawer-layout'
 import { GroupBadge } from '@/components/group-badge'
 import { PublicLayout } from '@/components/layout'
+import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -560,6 +561,14 @@ function ModelBackendProviderSection(props: { model: PricingModel }) {
     )
   }
 
+  if (model.bonus_quota_enabled) {
+    cells.push(
+      <CatalogInfoCell key='points' label={t('Deducted From')}>
+        <CatalogPillList items={[t('Points deduction')]} />
+      </CatalogInfoCell>
+    )
+  }
+
   if (model.parameter_count) {
     cells.push(
       <CatalogInfoCell key='parameters' label={t('Parameters')}>
@@ -623,6 +632,14 @@ function ModelHeader(props: { model: PricingModel }) {
         )}
         <span className='text-muted-foreground/30'>·</span>
         <ModelBillingModeBadge model={model} />
+        {model.bonus_quota_enabled && (
+          <StatusBadge
+            label={t('Points deduction')}
+            variant='success'
+            size='sm'
+            copyable={false}
+          />
+        )}
       </div>
       {description && (
         <p className='text-muted-foreground mt-2 text-sm leading-relaxed'>

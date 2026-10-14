@@ -36,6 +36,8 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
+import { isValidModelRpmMap } from '@/lib/rate-limit'
 
 import {
   SettingsForm,
@@ -76,6 +78,13 @@ const createRateLimitSchema = (t: (key: string) => string) =>
       .string()
       .optional()
       .refine(isValidJSON, {
+        message: t('Invalid JSON format or values out of allowed range'),
+      }),
+    BonusQuotaModelRpmLimit: z.number().min(0).max(100000000),
+    BonusQuotaModelRpmByModel: z
+      .string()
+      .optional()
+      .refine(isValidModelRpmMap, {
         message: t('Invalid JSON format or values out of allowed range'),
       }),
   })
@@ -161,7 +170,7 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
                         step={1}
                         {...field}
                         onChange={(e) =>
-                          field.onChange(parseInt(e.target.value) || 0)
+                          field.onChange(Number.parseInt(e.target.value) || 0)
                         }
                       />
                       <span className='text-muted-foreground text-sm'>
@@ -192,7 +201,7 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
                         step={1}
                         {...field}
                         onChange={(e) =>
-                          field.onChange(parseInt(e.target.value) || 0)
+                          field.onChange(Number.parseInt(e.target.value) || 0)
                         }
                       />
                       <span className='text-muted-foreground text-sm'>
@@ -223,7 +232,7 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
                         step={1}
                         {...field}
                         onChange={(e) =>
-                          field.onChange(parseInt(e.target.value) || 1)
+                          field.onChange(Number.parseInt(e.target.value) || 1)
                         }
                       />
                       <span className='text-muted-foreground text-sm'>
@@ -239,6 +248,74 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
               )}
             />
           </div>
+
+          <FormField
+            control={form.control}
+            name='BonusQuotaModelRpmLimit'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Free-credit model RPM limit')}</FormLabel>
+                <FormControl>
+                  <div className='flex items-center gap-2'>
+                    <Input
+                      type='number'
+                      min={0}
+                      max={100000000}
+                      step={1}
+                      {...field}
+                      onChange={(e) =>
+                        field.onChange(Number.parseInt(e.target.value) || 0)
+                      }
+                    />
+                    <span className='text-muted-foreground text-sm'>
+                      {t('times')}
+                    </span>
+                  </div>
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'Applies only to models in the free-credit model list, counted per user per minute. 0 = unlimited. Can be overridden per user.'
+                  )}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='BonusQuotaModelRpmByModel'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>
+                  {t('Free-credit model RPM limit (per model)')}
+                </FormLabel>
+                <FormControl>
+                  <Textarea
+                    rows={4}
+                    placeholder={`{\n  "frame": 3,\n  "free": 1\n}`}
+                    className='font-mono text-sm'
+                    {...field}
+                  />
+                </FormControl>
+                <FormDescription>
+                  <div className='space-y-1 text-xs'>
+                    <p>
+                      {t(
+                        'JSON object mapping model name to its own requests-per-minute cap. Only models in the free-credit model list are affected.'
+                      )}
+                    </p>
+                    <p>
+                      {t(
+                        'A model with no entry here has no per-model cap; its requests still count towards the total limit above. Each model is counted separately.'
+                      )}
+                    </p>
+                  </div>
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
           <FormField
             control={form.control}

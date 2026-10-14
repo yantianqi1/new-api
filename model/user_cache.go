@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -11,12 +12,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const userCacheSchemaVersion = 2
+const userCacheSchemaVersion = 3
 
 type UserBase struct {
 	Id          int    `json:"id"`
 	Group       string `json:"group"`
 	Email       string `json:"email"`
+	BonusQuota  int    `json:"bonus_quota"`
 	Quota       int    `json:"quota"`
 	Status      int    `json:"status"`
 	Role        int    `json:"role"`
@@ -29,6 +31,7 @@ type UserBase struct {
 func (user *UserBase) WriteContext(c *gin.Context) {
 	common.SetContextKey(c, constant.ContextKeyUserGroup, user.Group)
 	common.SetContextKey(c, constant.ContextKeyUserQuota, user.Quota)
+	c.Set("user_bonus_quota", user.BonusQuota)
 	common.SetContextKey(c, constant.ContextKeyUserStatus, user.Status)
 	common.SetContextKey(c, constant.ContextKeyUserEmail, user.Email)
 	common.SetContextKey(c, constant.ContextKeyUserName, user.Username)
@@ -275,4 +278,26 @@ func GetUserLanguage(userId int) string {
 		return ""
 	}
 	return userCache.GetSetting().Language
+}
+
+func cacheIncrUserBonusQuota(userId int, delta int64) error {
+	if !common.RedisEnabled {
+		return nil
+	}
+	const script = `
+if tonumber(redis.call('HGET', KEYS[1], 'Id') or '0') ~= tonumber(ARGV[2])
+ or tonumber(redis.call('HGET', KEYS[1], 'CacheSchema') or '0') ~= tonumber(ARGV[3])
+ or redis.call('HEXISTS', KEYS[1], 'BonusQuota') == 0 then return -1 end
+redis.call('HINCRBY', KEYS[1], 'BonusQuota', ARGV[1])
+return 1`
+	return common.RDB.Eval(context.Background(), script, []string{getUserCacheKey(userId)}, delta, userId, userCacheSchemaVersion).Err()
+}
+
+func syncCreditUserBonusQuotaCache(userId, quota int, operation string) {
+	if quota <= 0 {
+		return
+	}
+	if err := cacheIncrUserBonusQuota(userId, int64(quota)); err != nil {
+		common.SysLog(common.LogText("failed to sync %s credit to user bonus quota cache: %s", operation, err.Error()))
+	}
 }

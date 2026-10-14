@@ -97,6 +97,8 @@ func ValidateConsoleSettings(settingsStr string, settingType string) error {
 		return validateAnnouncements(settingsStr)
 	case "FAQ":
 		return validateFAQ(settingsStr)
+	case "ActivityBarItems":
+		return validateActivityBarItems(settingsStr)
 	case "UptimeKumaGroups":
 		return validateUptimeKumaGroups(settingsStr)
 	default:
@@ -328,3 +330,61 @@ func validateUptimeKumaGroups(groupsStr string) error {
 func GetUptimeKumaGroups() []map[string]any {
 	return getJSONList(GetConsoleSetting().UptimeKumaGroups)
 }
+
+var activityMessages = itemMessages{
+	invalidURL:    "Activity #{{index}} has an invalid URL format",
+	unparsableURL: "Activity #{{index}} has a URL that cannot be parsed: {{error}}",
+	unsafeContent: "Activity #{{index}} contains disallowed content",
+}
+
+func validateActivityBarItems(raw string) error {
+	list, err := parseJSONArray(raw, "Invalid activity bar JSON: {{error}}")
+	if err != nil {
+		return err
+	}
+	if len(list) > 30 {
+		return common.NewMessage("Activity bar cannot contain more than 30 items")
+	}
+	for i, item := range list {
+		title, ok := item["title"].(string)
+		if !ok || strings.TrimSpace(title) == "" {
+			return common.NewMessage("Activity #{{index}} requires a title", map[string]any{"index": i + 1})
+		}
+		if exceedsMaxCharacters(title, 250) {
+			return common.NewMessage("Activity #{{index}} title exceeds 250 characters", map[string]any{"index": i + 1})
+		}
+		if err := checkDangerousContent(title, i+1, activityMessages); err != nil {
+			return err
+		}
+		if tag, exists := item["tag"]; exists && tag != nil {
+			value, ok := tag.(string)
+			if !ok || exceedsMaxCharacters(value, 30) {
+				return common.NewMessage("Activity #{{index}} tag must be text of at most 30 characters", map[string]any{"index": i + 1})
+			}
+			if err := checkDangerousContent(value, i+1, activityMessages); err != nil {
+				return err
+			}
+		}
+		if link, exists := item["link"]; exists && link != nil {
+			value, ok := link.(string)
+			if !ok || exceedsMaxCharacters(value, 500) {
+				return common.NewMessage("Activity #{{index}} link must be text of at most 500 characters", map[string]any{"index": i + 1})
+			}
+			if err := checkDangerousContent(value, i+1, activityMessages); err != nil {
+				return err
+			}
+			if strings.TrimSpace(value) == "" {
+				continue
+			}
+			if strings.HasPrefix(value, "/") && !strings.HasPrefix(value, "//") && !strings.Contains(value, "\\") {
+				continue
+			}
+			if err := validateURL(value, i+1, activityMessages); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func GetActivityBarItems() []map[string]any { return getJSONList(GetConsoleSetting().ActivityBarItems) }

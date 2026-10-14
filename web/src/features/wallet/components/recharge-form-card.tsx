@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Gift, ExternalLink, Loader2, Receipt, WalletCards } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -50,12 +50,18 @@ import type {
   TopupInfo,
   CreemProduct,
   WaffoPayMethod,
+  SpecialTier,
 } from '../types'
 import { CreemProductsSection } from './creem-products-section'
+import { SpecialTiersSection } from './special-tiers-section'
 
 interface RechargeFormCardProps {
   topupInfo: TopupInfo | null
   presetAmounts: PresetAmount[]
+  promotionalPurchase?: boolean
+  specialTiers?: SpecialTier[]
+  selectedSpecialTier?: SpecialTier | null
+  onSelectSpecialTier?: (tier: SpecialTier | null) => void
   selectedPreset: number | null
   onSelectPreset: (preset: PresetAmount) => void
   topupAmount: number
@@ -111,16 +117,19 @@ export function RechargeFormCard({
   waffoMinTopup,
   onWaffoMethodSelect,
   enableWaffoPancakeTopup,
+  promotionalPurchase = false,
+  specialTiers,
+  selectedSpecialTier,
+  onSelectSpecialTier,
 }: RechargeFormCardProps) {
   const { t } = useTranslation()
   const [localAmount, setLocalAmount] = useState(topupAmount.toString())
 
-  useEffect(() => {
-    // Empty string must survive, otherwise the field can never be cleared
-    setLocalAmount((prev) =>
-      prev === '' && topupAmount === 0 ? prev : topupAmount.toString()
-    )
-  }, [topupAmount])
+  const [syncedAmount, setSyncedAmount] = useState(topupAmount)
+  if (syncedAmount !== topupAmount) {
+    setSyncedAmount(topupAmount)
+    setLocalAmount(topupAmount.toString())
+  }
 
   const handleAmountChange = (value: string) => {
     setLocalAmount(value)
@@ -221,6 +230,16 @@ export function RechargeFormCard({
         <div className='space-y-4 sm:space-y-6'>
           {hasConfigurableTopup && (
             <>
+              {specialTiers &&
+                specialTiers.length > 0 &&
+                onSelectSpecialTier && (
+                  <SpecialTiersSection
+                    specialTiers={specialTiers}
+                    selectedSpecialTier={selectedSpecialTier ?? null}
+                    onSelectTier={onSelectSpecialTier}
+                  />
+                )}
+
               {presetAmounts.length > 0 && (
                 <div className='space-y-2.5 sm:space-y-3'>
                   <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
@@ -334,15 +353,27 @@ export function RechargeFormCard({
                         method.min_topup || 0,
                         getMinTopupAmount(topupInfo)
                       )
-                      const disabled = minTopup > topupAmount
-                      const disabledReason = disabled
-                        ? t('Minimum topup amount: {{amount}}', {
-                            amount: minTopup,
-                          })
-                        : undefined
-                      const disabledLabel = disabled
-                        ? `${t('Minimum:')} ${minTopup}`
-                        : undefined
+                      const promoUnsupported =
+                        promotionalPurchase &&
+                        ['stripe', 'waffo', 'waffo_pancake'].includes(
+                          method.type
+                        )
+                      const belowMin =
+                        !promotionalPurchase && minTopup > topupAmount
+                      const disabled = promoUnsupported || belowMin
+                      let disabledReason: string | undefined
+                      let disabledLabel: string | undefined
+                      if (promoUnsupported) {
+                        disabledReason = t(
+                          'Promotional packs only support online payment'
+                        )
+                        disabledLabel = t('Unavailable')
+                      } else if (belowMin) {
+                        disabledReason = t('Minimum topup amount: {{amount}}', {
+                          amount: minTopup,
+                        })
+                        disabledLabel = `${t('Minimum:')} ${minTopup}`
+                      }
 
                       const button = (
                         <Button
@@ -447,7 +478,11 @@ export function RechargeFormCard({
                             key={methodKey}
                             variant='outline'
                             onClick={() => onWaffoMethodSelect(method, index)}
-                            disabled={belowMin || !!paymentLoading}
+                            disabled={
+                              promotionalPurchase ||
+                              belowMin ||
+                              !!paymentLoading
+                            }
                             title={disabledReason}
                             aria-label={
                               disabledReason

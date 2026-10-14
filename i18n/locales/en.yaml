@@ -73,3 +73,7 @@ channel.upstream_update_added_models: "Added model examples (showing {{.Shown}}/
 channel.upstream_update_removed_models: "Removed model examples (showing {{.Shown}}/{{.Total}}): {{.Models}}"
 channel.upstream_update_failed_channels: "Failed channel IDs (showing {{.Shown}}/{{.Total}}): {{.Ids}}"
 channel.upstream_update_more_omitted: " ({{.Count}} more omitted)"
+
+redemption.max_uses_invalid: "Uses per code must be between the number already used and 100000"
+distributor.bonus_quota_model_rpm_limit_exceeded: "Free-credit models are limited to {{.Limit}} requests per minute per user. Please try again later"
+distributor.bonus_quota_model_rpm_by_model_limit_exceeded: "Free-credit model {{.Model}} is limited to {{.Limit}} requests per minute per user. Please try again later"

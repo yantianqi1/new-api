@@ -56,6 +56,11 @@ const quotaSchema = z.object({
   QuotaForInviter: z.coerce.number().min(0),
   QuotaForInvitee: z.coerce.number().min(0),
   TopUpLink: z.string(),
+  general_setting: z
+    .object({
+      model_square_link: z.string().optional(),
+    })
+    .optional(),
   quota_setting: z.object({
     enable_free_model_pre_consume: z.boolean(),
     trust_quota_usd: z.preprocess(
@@ -319,6 +324,28 @@ export function QuotaSettingsSection({
                   </FormControl>
                   <FormDescription>
                     {t('External link for users to purchase quota')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='general_setting.model_square_link'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Model Square Link')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder='https://example.com/pricing'
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'External link for Model Square, leave empty to use default'
+                    )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

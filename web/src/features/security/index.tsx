@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TitledCard } from '@/components/ui/titled-card'
+import { OIDCAuthorizedApplicationsCard } from '@/features/oidc-provider/authorized-applications-card'
 import { useProfile } from '@/features/profile/hooks/use-profile'
 
 import { AccessTokensCard } from './components/access-tokens-card'
@@ -106,6 +107,7 @@ export function Security() {
             </h3>
             <LoginSessionsCard />
             <AccessTokensCard />
+            <OIDCAuthorizedApplicationsCard />
           </section>
           <section aria-labelledby='security-account' className='space-y-4'>
             <h3 id='security-account' className='text-sm font-semibold'>

@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 export type HeaderNavAccessConfig = {
   enabled: boolean
   requireAuth: boolean
+  link?: string
 }
 
 export type HeaderNavModulesConfig = {
@@ -121,6 +122,7 @@ const parseAccessModule = (
     return {
       enabled: toBoolean(record.enabled, fallback.enabled),
       requireAuth: toBoolean(record.requireAuth, fallback.requireAuth),
+      link: typeof record.link === 'string' ? record.link : fallback.link,
     }
   }
   return { ...fallback }

@@ -16,15 +16,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useQuery } from '@tanstack/react-query'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { SectionPageLayout } from '@/components/layout'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { getSelf } from '@/lib/api'
+import { handleServerError } from '@/lib/handle-server-error'
+import { requireServerSuccess } from '@/lib/server-error-message'
 
+import { getBargainInfo, startBargainActivity } from './api'
+import { AffiliateCommissionCard } from './components/affiliate-commission-card'
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
+import { BargainCard } from './components/bargain-card'
 import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
 import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
 import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
@@ -43,6 +50,9 @@ import {
   useWaffoPancakePayment,
 } from './hooks'
 import {
+  isStripePayment,
+  isWaffoPayment,
+  isWaffoPancakePayment,
   getDefaultPaymentType,
   getMinTopupAmount,
   dispatchSelectedPayment,
@@ -53,6 +63,9 @@ import type {
   PresetAmount,
   CreemProduct,
   WaffoPayMethod,
+  SpecialTier,
+  BargainInfo,
+  BargainActivity,
 } from './types'
 
 interface WalletProps {
@@ -61,8 +74,13 @@ interface WalletProps {
 
 export function Wallet(props: WalletProps) {
   const { t } = useTranslation()
-  const [user, setUser] = useState<UserWalletData | null>(null)
-  const [userLoading, setUserLoading] = useState(true)
+  const userQuery = useQuery({
+    queryKey: ['wallet-user'],
+    queryFn: async () =>
+      requireServerSuccess(await getSelf()).data as UserWalletData,
+  })
+  const user = userQuery.data ?? null
+  const userLoading = userQuery.isPending
   const [topupAmount, setTopupAmount] = useState(0)
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null)
   const [selectedPaymentMethod, setSelectedPaymentMethod] =
@@ -73,12 +91,20 @@ export function Wallet(props: WalletProps) {
   const [paymentLoading, setPaymentLoading] = useState<string | null>(null)
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [transferDialogOpen, setTransferDialogOpen] = useState(false)
-  const [billingDialogOpen, setBillingDialogOpen] = useState(false)
+  const [billingDialogOpen, setBillingDialogOpen] = useState(
+    Boolean(props.initialShowHistory)
+  )
   const [redemptionCode, setRedemptionCode] = useState('')
   const [creemDialogOpen, setCreemDialogOpen] = useState(false)
   const [selectedCreemProduct, setSelectedCreemProduct] =
     useState<CreemProduct | null>(null)
   const [showSubscriptionPanel, setShowSubscriptionPanel] = useState(true)
+  const [selectedSpecialTier, setSelectedSpecialTier] =
+    useState<SpecialTier | null>(null)
+  const [selectedBargainActivity, setSelectedBargainActivity] =
+    useState<BargainActivity | null>(null)
+  const [bargainInfo, setBargainInfo] = useState<BargainInfo | null>(null)
+  const [startBargainLoading, setStartBargainLoading] = useState(false)
 
   const { status } = useStatus()
   const { currency } = useSystemConfig()
@@ -109,29 +135,25 @@ export function Wallet(props: WalletProps) {
   const { processing: pancakeProcessing, processWaffoPancakePayment } =
     useWaffoPancakePayment()
 
-  // Fetch and refresh user data
+  const refetchUser = userQuery.refetch
   const fetchUser = useCallback(async () => {
+    await refetchUser()
+  }, [refetchUser])
+
+  // Fetch bargain info
+  const fetchBargainInfo = useCallback(async () => {
     try {
-      setUserLoading(true)
-      const response = await getSelf()
-      if (response.success && response.data) {
-        setUser(response.data as UserWalletData)
+      const res = requireServerSuccess(await getBargainInfo())
+      if (res.success && res.data) {
+        setBargainInfo(res.data)
       }
     } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to fetch user data:', error)
-    } finally {
-      setUserLoading(false)
+      handleServerError(error)
     }
   }, [])
 
   useEffect(() => {
-    fetchUser()
-  }, [fetchUser])
-
-  useEffect(() => {
     if (props.initialShowHistory) {
-      setBillingDialogOpen(true)
       window.history.replaceState({}, '', window.location.pathname)
     }
   }, [props.initialShowHistory])
@@ -142,11 +164,18 @@ export function Wallet(props: WalletProps) {
     if (topupInfo && !topupAmountInitializedRef.current) {
       topupAmountInitializedRef.current = true
       const minTopup = getMinTopupAmount(topupInfo)
-      setTopupAmount(minTopup)
-
-      // Calculate initial payment amount with default payment type
       const defaultPaymentType = getDefaultPaymentType(topupInfo)
+      const targetTier = new URLSearchParams(window.location.search).get('tier')
+      if (
+        topupInfo.special_tiers?.some(
+          (tier) => tier.id === targetTier && tier.user_can_purchase
+        )
+      ) {
+        return
+      }
       calculatePaymentAmount(minTopup, defaultPaymentType)
+        .then(() => setTopupAmount(minTopup))
+        .catch(handleServerError)
     }
   }, [topupInfo, calculatePaymentAmount])
 
@@ -155,8 +184,102 @@ export function Wallet(props: WalletProps) {
     return selectedPaymentMethod?.type || getDefaultPaymentType(topupInfo)
   }, [selectedPaymentMethod, topupInfo])
 
+  // Handle special tier selection
+  const handleSelectSpecialTier = useCallback(
+    (tier: SpecialTier | null) => {
+      setSelectedBargainActivity(null)
+      setSelectedSpecialTier(tier)
+      if (tier) {
+        setSelectedPreset(null)
+        setTopupAmount(tier.price)
+        calculatePaymentAmount(tier.price, getCurrentPaymentType(), {
+          tier_id: tier.id,
+        })
+      } else {
+        const amount = getMinTopupAmount(topupInfo)
+        setTopupAmount(amount)
+        calculatePaymentAmount(amount, getCurrentPaymentType())
+      }
+    },
+    [calculatePaymentAmount, getCurrentPaymentType, topupInfo]
+  )
+
+  const promoUrlInitialized = useRef(false)
+
+  // Auto select tier from URL search parameter (?tier=xxx)
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search)
+      const targetTierId = params.get('tier')
+      if (
+        !promoUrlInitialized.current &&
+        targetTierId &&
+        Array.isArray(topupInfo?.special_tiers)
+      ) {
+        promoUrlInitialized.current = true
+        const matchedTier = topupInfo.special_tiers.find(
+          (t) => t.id === targetTierId && t.user_can_purchase
+        )
+        if (matchedTier) {
+          calculatePaymentAmount(matchedTier.price, getCurrentPaymentType(), {
+            tier_id: matchedTier.id,
+          })
+            .then(() => handleSelectSpecialTier(matchedTier))
+            .catch(handleServerError)
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [
+    topupInfo?.special_tiers,
+    handleSelectSpecialTier,
+    calculatePaymentAmount,
+    getCurrentPaymentType,
+  ])
+
+  // Handle start bargain
+  const handleStartBargainActivity = useCallback(async () => {
+    setStartBargainLoading(true)
+    try {
+      const res = requireServerSuccess(await startBargainActivity())
+      if (res.success) {
+        toast.success(
+          t('Bargain activity started! Invite friends to slash the price')
+        )
+        await fetchBargainInfo()
+      } else {
+        toast.error(res.message || t('Failed to start bargain activity'))
+      }
+    } catch (error) {
+      handleServerError(error)
+    } finally {
+      setStartBargainLoading(false)
+    }
+  }, [fetchBargainInfo, t])
+
+  // Handle buy bargain
+  const handleBuyBargain = useCallback(
+    (activity: BargainActivity) => {
+      if (!activity) return
+      setSelectedSpecialTier(null)
+      setSelectedPreset(null)
+      setSelectedBargainActivity(activity)
+      setTopupAmount(activity.current_price)
+      calculatePaymentAmount(activity.current_price, getCurrentPaymentType(), {
+        bargain_activity_id: activity.id,
+      })
+      document
+        .querySelector('#wallet-add-funds')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    },
+    [calculatePaymentAmount, getCurrentPaymentType]
+  )
+
   // Handle preset selection
   const handleSelectPreset = (preset: PresetAmount) => {
+    setSelectedSpecialTier(null)
+    setSelectedBargainActivity(null)
     setTopupAmount(preset.value)
     setSelectedPreset(preset.value)
     calculatePaymentAmount(preset.value, getCurrentPaymentType())
@@ -164,6 +287,8 @@ export function Wallet(props: WalletProps) {
 
   // Handle topup amount change
   const handleTopupAmountChange = (amount: number) => {
+    setSelectedSpecialTier(null)
+    setSelectedBargainActivity(null)
     setTopupAmount(amount)
     setSelectedPreset(null)
     calculatePaymentAmount(amount, getCurrentPaymentType())
@@ -171,19 +296,33 @@ export function Wallet(props: WalletProps) {
 
   // Handle payment method selection
   const handlePaymentMethodSelect = async (method: PaymentMethod) => {
+    if (
+      (selectedSpecialTier || selectedBargainActivity) &&
+      (isStripePayment(method.type) ||
+        isWaffoPayment(method.type) ||
+        isWaffoPancakePayment(method.type))
+    ) {
+      toast.error(t('Promotional packs only support online payment'))
+      return
+    }
     setSelectedPaymentMethod(method)
     setSelectedWaffoMethodIndex(null)
     setPaymentLoading(method.type)
 
     try {
-      // Validate minimum topup
-      const minTopup = getMinTopupAmount(topupInfo)
-      if (topupAmount < minTopup) {
-        return
+      // Validate minimum topup only for standard (non-special-tier and non-bargain) topup
+      if (!selectedSpecialTier && !selectedBargainActivity) {
+        const minTopup = getMinTopupAmount(topupInfo)
+        if (topupAmount < minTopup) {
+          return
+        }
       }
 
       // Calculate payment amount and show confirmation dialog
-      await calculatePaymentAmount(topupAmount, method.type)
+      await calculatePaymentAmount(topupAmount, method.type, {
+        tier_id: selectedSpecialTier?.id,
+        bargain_activity_id: selectedBargainActivity?.id,
+      })
       setConfirmDialogOpen(true)
     } finally {
       setPaymentLoading(null)
@@ -194,20 +333,33 @@ export function Wallet(props: WalletProps) {
   const handlePaymentConfirm = async () => {
     if (!selectedPaymentMethod) return
 
+    const options = {
+      tier_id: selectedSpecialTier ? selectedSpecialTier.id : undefined,
+      bargain_activity_id: selectedBargainActivity
+        ? selectedBargainActivity.id
+        : undefined,
+    }
+
     const success = await dispatchSelectedPayment(
       selectedPaymentMethod,
       topupAmount,
       selectedWaffoMethodIndex,
       {
-        regular: processPayment,
+        regular: (amt, type) => processPayment(amt, type, options),
         waffo: processWaffoPayment,
         waffoPancake: processWaffoPancakePayment,
-      }
+      },
+      options
     )
 
     if (success) {
       setConfirmDialogOpen(false)
+      setSelectedSpecialTier(null)
+      setSelectedBargainActivity(null)
       await fetchUser()
+      if (options.bargain_activity_id) {
+        await fetchBargainInfo()
+      }
     }
   }
 
@@ -253,6 +405,7 @@ export function Wallet(props: WalletProps) {
     method: WaffoPayMethod,
     index: number
   ) => {
+    if (selectedSpecialTier || selectedBargainActivity) return
     const loadingKey = `waffo-${index}`
     setSelectedPaymentMethod({
       name: method.name,
@@ -282,6 +435,16 @@ export function Wallet(props: WalletProps) {
     []
   )
 
+  const itemDescription = useMemo(() => {
+    if (selectedSpecialTier) {
+      return `${selectedSpecialTier.name} (¥${selectedSpecialTier.price})`
+    }
+    if (selectedBargainActivity) {
+      return `${selectedBargainActivity.title} (${t('Slashed to')} ¥${selectedBargainActivity.current_price.toFixed(2)})`
+    }
+    return undefined
+  }, [selectedSpecialTier, selectedBargainActivity, t])
+
   return (
     <>
       <SectionPageLayout>
@@ -297,10 +460,27 @@ export function Wallet(props: WalletProps) {
                   : 'grid gap-4'
               }
             >
-              <div id='wallet-add-funds' className='scroll-mt-4'>
+              <div
+                id='wallet-add-funds'
+                className='flex scroll-mt-4 flex-col gap-4'
+              >
+                <BargainCard
+                  bargainInfo={bargainInfo || topupInfo?.bargain}
+                  onStartActivity={handleStartBargainActivity}
+                  onBuyBargain={handleBuyBargain}
+                  onRefresh={fetchBargainInfo}
+                  affLink={affiliateLink}
+                  startLoading={startBargainLoading}
+                />
                 <RechargeFormCard
                   topupInfo={topupInfo}
                   presetAmounts={presetAmounts}
+                  specialTiers={topupInfo?.special_tiers}
+                  selectedSpecialTier={selectedSpecialTier}
+                  promotionalPurchase={Boolean(
+                    selectedSpecialTier || selectedBargainActivity
+                  )}
+                  onSelectSpecialTier={handleSelectSpecialTier}
                   selectedPreset={selectedPreset}
                   onSelectPreset={handleSelectPreset}
                   topupAmount={topupAmount}
@@ -348,6 +528,8 @@ export function Wallet(props: WalletProps) {
               }
               loading={affiliateLoading}
             />
+
+            <AffiliateCommissionCard onPaidQuotaChanged={fetchUser} />
           </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>
@@ -363,6 +545,7 @@ export function Wallet(props: WalletProps) {
         processing={processing || waffoProcessing || pancakeProcessing}
         discountRate={getDiscountRate()}
         usdExchangeRate={effectiveUsdExchangeRate}
+        itemDescription={itemDescription}
       />
 
       <TransferDialog

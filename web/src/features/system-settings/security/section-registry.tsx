@@ -36,6 +36,8 @@ const SECURITY_SECTIONS = [
           ModelRequestRateLimitDurationMinutes:
             settings.ModelRequestRateLimitDurationMinutes,
           ModelRequestRateLimitGroup: settings.ModelRequestRateLimitGroup,
+          BonusQuotaModelRpmLimit: settings.BonusQuotaModelRpmLimit,
+          BonusQuotaModelRpmByModel: settings.BonusQuotaModelRpmByModel,
         }}
       />
     ),

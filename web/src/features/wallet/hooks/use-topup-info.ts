@@ -115,6 +115,10 @@ function parseCreemProducts(data: unknown): CreemProduct[] {
         productId: typeof item.productId === 'string' ? item.productId : '',
         price: Number(item.price) || 0,
         quota: Number(item.quota) || 0,
+        commissionBaseQuota:
+          typeof item.commissionBaseQuota === 'number'
+            ? item.commissionBaseQuota
+            : undefined,
         currency,
       }
     })
@@ -193,6 +197,10 @@ export function useTopupInfo() {
         waffo_pay_methods: parseWaffoPayMethods(
           response.data.waffo_pay_methods
         ),
+        special_tiers: Array.isArray(response.data.special_tiers)
+          ? response.data.special_tiers
+          : [],
+        bargain: response.data.bargain || undefined,
       }
 
       setTopupInfo(processedData)

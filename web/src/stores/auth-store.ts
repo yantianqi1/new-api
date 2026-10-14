@@ -37,6 +37,8 @@ export interface AuthUser {
   status?: number
   group?: string
   quota?: number
+  bonus_quota?: number
+  bonus_quota_daily_date?: string
   used_quota?: number
   request_count?: number
   aff_code?: string

@@ -2,6 +2,7 @@ package relayconvert
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -1004,4 +1005,31 @@ func mustMarshalRequestJSON(t *testing.T, value any) []byte {
 	raw, err := kitutil.Marshal(value)
 	require.NoError(t, err)
 	return raw
+}
+
+func TestGeminiUnsupportedMediaIsClientErrorAndHidesURL(t *testing.T) {
+	SetMediaResolver(MediaResolver{GetBase64Data: func(context.Context, types.FileSource, ...string) (string, string, error) {
+		return "eA==", "application/zip", nil
+	}})
+	t.Cleanup(func() {
+		SetMediaResolver(MediaResolver{
+			GetBase64Data: func(context.Context, types.FileSource, ...string) (string, string, error) {
+				return "aGVsbG8=", "image/png", nil
+			},
+			DecodeBase64FileData: func(string) (string, string, error) { return "aGVsbG8=", "image/png", nil },
+		})
+	})
+	for _, request := range []any{
+		&dto.GeneralOpenAIRequest{Model: "gemini-test", Messages: []dto.Message{{Role: "user", Content: []any{map[string]any{"type": "image_url", "image_url": map[string]any{"url": "https://example.com/private.zip?secret=private-token"}}}}}},
+		&dto.OpenAIResponsesRequest{Model: "gemini-test", Input: []byte(`[{"role":"user","content":[{"type":"input_image","image_url":"https://example.com/private.zip?secret=private-token"}]}]`)},
+	} {
+		_, err := ConvertRequest(context.Background(), &convmeta.Values{}, types.RelayFormatGemini, request)
+		require.Error(t, err)
+		assert.NotContains(t, err.Error(), "private-token")
+		assert.NotContains(t, err.Error(), "example.com")
+		var apiError *types.NewAPIError
+		require.ErrorAs(t, err, &apiError)
+		assert.Equal(t, http.StatusBadRequest, apiError.StatusCode)
+		assert.True(t, types.IsSkipRetryError(apiError))
+	}
 }

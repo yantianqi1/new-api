@@ -25,6 +25,7 @@ type PricingPluginVariant struct {
 }
 
 type Pricing struct {
+	BonusQuotaEnabled      bool                                 `json:"bonus_quota_enabled,omitempty"`
 	BillingPluginVariants  []PricingPluginVariant               `json:"billing_plugin_variants,omitempty"`
 	ModelName              string                               `json:"model_name"`
 	Description            string                               `json:"description,omitempty"`
@@ -425,6 +426,7 @@ func updatePricing() {
 				})
 			}
 		}
+		pricing.BonusQuotaEnabled = ratio_setting.IsBonusQuotaModel(model)
 		pricingMap = append(pricingMap, pricing)
 	}
 

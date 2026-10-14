@@ -118,7 +118,16 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.POST("/passkey/verify/begin", middleware.UserCriticalRateLimit("security-verification"), middleware.DisableCache(), controller.PasskeyVerifyBegin)
 				selfRoute.POST("/passkey/verify/finish", middleware.UserCriticalRateLimit("security-verification"), middleware.DisableCache(), controller.PasskeyVerifyFinish)
 				selfRoute.DELETE("/passkey", middleware.DisableCache(), controller.PasskeyDelete)
+				selfRoute.GET("/oidc/grants", middleware.DisableCache(), controller.ListOIDCGrants)
+				selfRoute.PATCH("/oidc/grants/:id", middleware.DisableCache(), middleware.UserCriticalRateLimit("oidc-grant"), controller.UpdateOIDCGrant)
+				selfRoute.DELETE("/oidc/grants/:id", middleware.DisableCache(), middleware.UserCriticalRateLimit("oidc-grant"), controller.RevokeOIDCGrant)
 				selfRoute.GET("/aff", controller.GetAffCode)
+				selfRoute.GET("/affiliate_commission/summary", controller.GetAffiliateCommissionSummary)
+				selfRoute.GET("/affiliate_commission/records", controller.GetUserAffiliateCommissions)
+				selfRoute.GET("/affiliate_commission/transfers", controller.GetUserAffiliateCommissionTransfers)
+				selfRoute.POST("/affiliate_commission/transfer", middleware.UserCriticalRateLimit("aff-transfer"), controller.TransferAffiliateCommission)
+				selfRoute.GET("/bargain", controller.GetBargainInfo)
+				selfRoute.POST("/bargain/start", middleware.CriticalRateLimit(), middleware.UserCriticalRateLimit("bargain"), controller.StartBargainActivity)
 				selfRoute.GET("/topup/info", controller.GetTopUpInfo)
 				selfRoute.GET("/topup/self", controller.GetUserTopUps)
 				selfRoute.POST("/topup", middleware.CriticalRateLimit(), controller.TopUp)
@@ -155,6 +164,7 @@ func SetApiRouter(router *gin.Engine) {
 			{
 				adminRoute.GET("/", controller.GetAllUsers)
 				adminRoute.GET("/topup", controller.GetAllTopUps)
+				adminRoute.GET("/affiliate_commission/admin/records", controller.GetAdminAffiliateCommissions)
 				adminRoute.POST("/topup/complete", controller.AdminCompleteTopUp)
 				adminRoute.GET("/search", controller.SearchUsers)
 				adminRoute.GET("/:id/oauth/bindings", controller.GetUserOAuthBindingsByAdmin)
@@ -164,6 +174,7 @@ func SetApiRouter(router *gin.Engine) {
 				adminRoute.POST("/", controller.CreateUser)
 				adminRoute.POST("/manage", controller.ManageUser)
 				adminRoute.PUT("/", controller.UpdateUser)
+				adminRoute.PUT("/:id/bonus_quota_model_rpm", controller.UpdateUserBonusQuotaModelRpm)
 				adminRoute.DELETE("/:id", controller.DeleteUser)
 				adminRoute.DELETE("/:id/reset_passkey", controller.AdminResetPasskey)
 
@@ -230,6 +241,16 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.POST("/waffo-pancake/save", controller.SaveWaffoPancake)
 			optionRoute.POST("/waffo-pancake/subscription-product", controller.CreateWaffoPancakeSubscriptionProduct)
 			optionRoute.GET("/waffo-pancake/subscription-product-options", controller.ListWaffoPancakeSubscriptionProductOptions)
+		}
+
+		oidcClients := apiRouter.Group("/oidc/client", middleware.RootAuth(), middleware.DisableCache())
+		{
+			oidcClients.GET("", controller.ListOIDCClients)
+			oidcClients.GET("/:id", controller.GetOIDCClient)
+			oidcClients.POST("", middleware.CriticalRateLimit(), middleware.UserCriticalRateLimit("oidc-client"), controller.CreateOIDCClient)
+			oidcClients.PUT("/:id", middleware.CriticalRateLimit(), middleware.UserCriticalRateLimit("oidc-client"), controller.UpdateOIDCClient)
+			oidcClients.DELETE("/:id", middleware.CriticalRateLimit(), middleware.UserCriticalRateLimit("oidc-client"), controller.DeleteOIDCClient)
+			oidcClients.POST("/:id/secret", middleware.CriticalRateLimit(), middleware.UserCriticalRateLimit("oidc-client"), controller.RotateOIDCClientSecret)
 		}
 
 		// Custom OAuth provider management (root only)
@@ -403,6 +424,7 @@ func SetApiRouter(router *gin.Engine) {
 			modelsRoute.GET("/sync_upstream/preview", controller.SyncUpstreamPreview)
 			modelsRoute.POST("/sync_upstream", controller.SyncUpstreamModels)
 			modelsRoute.POST("/delete", controller.BatchDeleteModelMeta)
+			modelsRoute.POST("/sync_marketplace", controller.SyncMarketplaceModels)
 			modelsRoute.GET("/missing", controller.GetMissingModels)
 			modelsRoute.GET("/", controller.GetAllModelsMeta)
 			modelsRoute.GET("/search", controller.SearchModelsMeta)

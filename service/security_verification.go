@@ -16,26 +16,30 @@ import (
 )
 
 const (
-	VerificationMethodTwoFA              = "2fa"
-	VerificationMethodPasskey            = "passkey"
-	VerificationMethodPassword           = "password"
-	VerificationMethodOAuth              = "oauth"
-	VerificationMethodSession            = "session"
-	VerificationScopeChannelKeyRead      = "channel.key.read"
-	VerificationScopePasskeyRegister     = "passkey.register"
-	VerificationScopePasskeyDelete       = "passkey.delete"
-	VerificationScopeTwoFASetup          = "2fa.setup"
-	VerificationScopeTwoFADisable        = "2fa.disable"
-	VerificationScopeTwoFABackupCodes    = "2fa.backup_codes.regenerate"
-	VerificationScopeLogin               = "auth.login"
-	VerificationScopeAccessTokenGenerate = "access_token.generate"
-	VerificationScopeAccessTokenRevoke   = "access_token.revoke"
-	VerificationScopeAccessTokenUpdate   = "access_token.update"
-	VerificationScopeAccountBind         = "account.binding.bind"
-	VerificationScopeAccountUnbind       = "account.binding.unbind"
-	VerificationScopePasswordSet         = "account.password.set"
-	VerificationScopePasswordChange      = "account.password.change"
-	VerificationScopeAccountDelete       = "account.delete"
+	VerificationScopeOIDCClientCreate       = "oidc.client.create"
+	VerificationScopeOIDCClientUpdate       = "oidc.client.update"
+	VerificationScopeOIDCClientDelete       = "oidc.client.delete"
+	VerificationScopeOIDCClientSecretRotate = "oidc.client.secret.rotate"
+	VerificationMethodTwoFA                 = "2fa"
+	VerificationMethodPasskey               = "passkey"
+	VerificationMethodPassword              = "password"
+	VerificationMethodOAuth                 = "oauth"
+	VerificationMethodSession               = "session"
+	VerificationScopeChannelKeyRead         = "channel.key.read"
+	VerificationScopePasskeyRegister        = "passkey.register"
+	VerificationScopePasskeyDelete          = "passkey.delete"
+	VerificationScopeTwoFASetup             = "2fa.setup"
+	VerificationScopeTwoFADisable           = "2fa.disable"
+	VerificationScopeTwoFABackupCodes       = "2fa.backup_codes.regenerate"
+	VerificationScopeLogin                  = "auth.login"
+	VerificationScopeAccessTokenGenerate    = "access_token.generate"
+	VerificationScopeAccessTokenRevoke      = "access_token.revoke"
+	VerificationScopeAccessTokenUpdate      = "access_token.update"
+	VerificationScopeAccountBind            = "account.binding.bind"
+	VerificationScopeAccountUnbind          = "account.binding.unbind"
+	VerificationScopePasswordSet            = "account.password.set"
+	VerificationScopePasswordChange         = "account.password.change"
+	VerificationScopeAccountDelete          = "account.delete"
 	// Administrative step-up scopes bind the managed user into the proof so a
 	// proof issued for one account cannot be replayed against another.
 	VerificationScopeAdminUserCreate       = "admin.user.create"
@@ -66,6 +70,10 @@ var (
 type VerificationOperation struct {
 	Scope   string          `json:"scope"`
 	Context json.RawMessage `json:"context,omitempty"`
+}
+
+type OIDCClientContext struct {
+	ClientID int `json:"client_id"`
 }
 
 type ChannelKeyReadContext struct {
@@ -163,6 +171,17 @@ func BindVerificationOperation(operation VerificationOperation) (VerificationBin
 	}
 	var normalized any
 	switch operation.Scope {
+	case VerificationScopeOIDCClientCreate:
+		if len(fields) != 0 {
+			return VerificationBinding{}, ErrVerificationContextInvalid
+		}
+		normalized = struct{}{}
+	case VerificationScopeOIDCClientUpdate, VerificationScopeOIDCClientDelete, VerificationScopeOIDCClientSecretRotate:
+		var context OIDCClientContext
+		if len(fields) != 1 || common.Unmarshal(fields["client_id"], &context.ClientID) != nil || context.ClientID <= 0 {
+			return VerificationBinding{}, ErrVerificationContextInvalid
+		}
+		normalized = context
 	case VerificationScopeChannelKeyRead:
 		var context ChannelKeyReadContext
 		if len(fields) != 1 || common.Unmarshal(fields["channel_id"], &context.ChannelID) != nil || context.ChannelID <= 0 {
@@ -330,7 +349,8 @@ func securityVerificationPolicy(scope string, state model.UserVerificationState)
 		VerificationScopePasswordSet, VerificationScopePasswordChange, VerificationScopeAccountDelete,
 		VerificationScopeAdminUserCreate, VerificationScopeAdminUserUpdate, VerificationScopeAdminUserDelete,
 		VerificationScopeAdminUserManage, VerificationScopeAdminUserPasskeyReset,
-		VerificationScopeAdminUserTwoFADisable, VerificationScopeAdminUserBindingClear:
+		VerificationScopeAdminUserTwoFADisable, VerificationScopeAdminUserBindingClear,
+		VerificationScopeOIDCClientCreate, VerificationScopeOIDCClientUpdate, VerificationScopeOIDCClientDelete, VerificationScopeOIDCClientSecretRotate:
 		if scope == VerificationScopeAccountDelete && state.Role == common.RoleRootUser {
 			return nil, ErrVerificationForbidden
 		}
@@ -375,7 +395,7 @@ func GetVerificationRequirements(identity AuthIdentity, scope string) (*Verifica
 	if state.Status != common.UserStatusEnabled || state.AuthVersion != identity.UserAuthVersion {
 		return nil, ErrAuthTokenInvalid
 	}
-	if scope == VerificationScopeChannelKeyRead && state.Role != common.RoleRootUser {
+	if (scope == VerificationScopeChannelKeyRead || strings.HasPrefix(scope, "oidc.client.")) && state.Role != common.RoleRootUser {
 		return nil, ErrVerificationForbidden
 	}
 	if strings.HasPrefix(scope, verificationScopeAdminUserPrefix) && state.Role < common.RoleAdminUser {
@@ -395,7 +415,8 @@ func GetVerificationRequirements(identity AuthIdentity, scope string) (*Verifica
 			case VerificationScopeAccountBind, VerificationScopeAccountUnbind, VerificationScopePasswordSet, VerificationScopePasswordChange, VerificationScopeAccountDelete,
 				VerificationScopeAdminUserCreate, VerificationScopeAdminUserUpdate, VerificationScopeAdminUserDelete,
 				VerificationScopeAdminUserManage, VerificationScopeAdminUserPasskeyReset,
-				VerificationScopeAdminUserTwoFADisable, VerificationScopeAdminUserBindingClear:
+				VerificationScopeAdminUserTwoFADisable, VerificationScopeAdminUserBindingClear,
+				VerificationScopeOIDCClientCreate, VerificationScopeOIDCClientUpdate, VerificationScopeOIDCClientDelete, VerificationScopeOIDCClientSecretRotate:
 				methods[i].Available, methods[i].Reason = false, "Password authentication is disabled."
 			}
 		}

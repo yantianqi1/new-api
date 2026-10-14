@@ -20,7 +20,11 @@ import type { QueryClient } from '@tanstack/react-query'
 
 import { readCachedStatus, statusQueryOptions } from '@/lib/status-query'
 
-export type ModuleAccess = { enabled: boolean; requireAuth: boolean }
+export type ModuleAccess = {
+  enabled: boolean
+  requireAuth: boolean
+  link?: string
+}
 
 export type HeaderNavModule = 'rankings' | 'pricing'
 
@@ -90,6 +94,7 @@ function parseAccess(raw: unknown, fallback: ModuleAccess): ModuleAccess {
     return {
       enabled: parseHeaderNavBoolean(r.enabled, fallback.enabled),
       requireAuth: parseHeaderNavBoolean(r.requireAuth, fallback.requireAuth),
+      link: typeof r.link === 'string' ? r.link : fallback.link,
     }
   }
   return { ...fallback }

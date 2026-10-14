@@ -30,6 +30,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 
 import {
@@ -53,6 +54,7 @@ const headerNavSchema = z.object({
   console: z.boolean(),
   pricingEnabled: z.boolean(),
   pricingRequireAuth: z.boolean(),
+  pricingLink: z.string(),
   rankingsEnabled: z.boolean(),
   rankingsRequireAuth: z.boolean(),
   docs: z.boolean(),
@@ -81,6 +83,7 @@ const toFormValues = (config: HeaderNavModulesConfig): HeaderNavFormValues => ({
     config.pricing?.requireAuth === undefined
       ? HEADER_NAV_DEFAULT.pricing.requireAuth
       : Boolean(config.pricing.requireAuth),
+  pricingLink: config.pricing?.link ?? '',
   rankingsEnabled:
     config.rankings?.enabled === undefined
       ? HEADER_NAV_DEFAULT.rankings.enabled
@@ -125,6 +128,7 @@ export function HeaderNavigationSection({
         ...(config.pricing ?? HEADER_NAV_DEFAULT.pricing),
         enabled: values.pricingEnabled,
         requireAuth: values.pricingRequireAuth,
+        link: values.pricingLink.trim() || undefined,
       },
       rankings: {
         ...(config.rankings ?? HEADER_NAV_DEFAULT.rankings),
@@ -149,7 +153,7 @@ export function HeaderNavigationSection({
   }
 
   const simpleModules: Array<{
-    key: keyof HeaderNavFormValues
+    key: 'home' | 'console' | 'docs' | 'about'
     title: string
     description: string
   }> = [
@@ -176,8 +180,8 @@ export function HeaderNavigationSection({
   ]
 
   const accessModules: Array<{
-    enabledKey: keyof HeaderNavFormValues
-    requireAuthKey: keyof HeaderNavFormValues
+    enabledKey: 'pricingEnabled' | 'rankingsEnabled'
+    requireAuthKey: 'pricingRequireAuth' | 'rankingsRequireAuth'
     requireAuthDependsOn: 'pricingEnabled' | 'rankingsEnabled'
     title: string
     description: string
@@ -291,6 +295,33 @@ export function HeaderNavigationSection({
                     </SettingsControlChildren>
                   )}
                 />
+                {module.enabledKey === 'pricingEnabled' && (
+                  <FormField
+                    control={form.control}
+                    name='pricingLink'
+                    render={({ field }) => (
+                      <SettingsControlChildren>
+                        <div className='space-y-1.5 py-2'>
+                          <FormLabel>{t('Custom Redirect Link')}</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder={t(
+                                'e.g. activity page model pricing link, leave empty for built-in model square'
+                              )}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            {t(
+                              'When configured, clicking Model Square redirects to this URL.'
+                            )}
+                          </FormDescription>
+                          <FormMessage />
+                        </div>
+                      </SettingsControlChildren>
+                    )}
+                  />
+                )}
               </SettingsControlGroup>
             ))}
           </div>

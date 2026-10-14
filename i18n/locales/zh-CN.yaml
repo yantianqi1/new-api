@@ -74,3 +74,7 @@ channel.upstream_update_added_models: "新增模型示例（展示 {{.Shown}}/{{
 channel.upstream_update_removed_models: "删除模型示例（展示 {{.Shown}}/{{.Total}}）：{{.Models}}"
 channel.upstream_update_failed_channels: "失败渠道 ID（展示 {{.Shown}}/{{.Total}}）：{{.Ids}}"
 channel.upstream_update_more_omitted: "（其余 {{.Count}} 个已省略）"
+
+redemption.max_uses_invalid: "每个兑换码的可用次数必须介于已使用次数和 100000 之间"
+distributor.bonus_quota_model_rpm_limit_exceeded: "本站免费积分模型每人每分钟最多请求 {{.Limit}} 次，请稍后重试"
+distributor.bonus_quota_model_rpm_by_model_limit_exceeded: "免费积分模型 {{.Model}} 每人每分钟最多请求 {{.Limit}} 次，请稍后重试"

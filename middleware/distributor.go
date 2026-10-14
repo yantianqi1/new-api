@@ -50,6 +50,32 @@ func Distribute() func(c *gin.Context) {
 			abortWithOpenAiMessage(c, invalidRequestStatus(err), i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
 			return
 		}
+		if shouldSelectChannel && modelRequest.Model != "" {
+			enabled, statusErr := model.IsModelEnabled(modelRequest.Model)
+			if statusErr != nil {
+				abortWithOpenAiMessage(c, http.StatusInternalServerError, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": "Unable to check model availability"}))
+				return
+			}
+			if !enabled {
+				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorTokenModelForbidden, map[string]any{"Model": modelRequest.Model}))
+				return
+			}
+		}
+		if modelRequest.Model != "" && ratio_setting.IsBonusQuotaModel(modelRequest.Model) {
+			if userSetting, exists := common.GetContextKeyType[dto.UserSetting](c, constant.ContextKeyUserSetting); exists {
+				userId := c.GetInt("id")
+				modelLimit := ResolveBonusQuotaModelRpmByModelLimit(userSetting, modelRequest.Model)
+				if modelLimit > 0 && !AllowBonusQuotaModelRpmByModelRequest(userId, modelRequest.Model, modelLimit) {
+					abortWithOpenAiMessage(c, http.StatusTooManyRequests, i18n.T(c, "distributor.bonus_quota_model_rpm_by_model_limit_exceeded", map[string]any{"Model": modelRequest.Model, "Limit": modelLimit}), types.ErrorCode("bonus_quota_model_rpm_by_model_limit_exceeded"))
+					return
+				}
+				totalLimit := ResolveBonusQuotaModelRpmLimit(userSetting)
+				if totalLimit > 0 && !AllowBonusQuotaModelRpmRequest(userId, totalLimit) {
+					abortWithOpenAiMessage(c, http.StatusTooManyRequests, i18n.T(c, "distributor.bonus_quota_model_rpm_limit_exceeded", map[string]any{"Limit": totalLimit}), types.ErrorCode("bonus_quota_model_rpm_limit_exceeded"))
+					return
+				}
+			}
+		}
 		_, pinned, _ := constraints.ResolvedPin()
 		if !pinned {
 			// Select a channel for the user
@@ -122,7 +148,12 @@ func Distribute() func(c *gin.Context) {
 			}
 		}
 		common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
-		SetupContextForSelectedChannel(c, channel, modelRequest.Model)
+		if pinned || shouldSelectChannel {
+			if setupErr := SetupContextForSelectedChannel(c, channel, modelRequest.Model); setupErr != nil {
+				abortWithOpenAiMessage(c, setupErr.StatusCode, setupErr.Error(), setupErr.GetErrorCode())
+				return
+			}
+		}
 		c.Next()
 		if channel != nil && c.Writer != nil && c.Writer.Status() < http.StatusBadRequest {
 			service.RecordChannelAffinity(c, channel.Id)
@@ -581,11 +612,15 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 			}
 		}
 	}
+	channelSetting := channel.GetSetting()
+	if channelSetting.RpmLimit > 0 && !AllowChannelRpmRequest(channel.Id, channelSetting) {
+		return types.NewErrorWithStatusCode(fmt.Errorf("channel %s (#%d) request rate limit exceeded (%d requests per minute)", channel.Name, channel.Id, channelSetting.RpmLimit), types.ErrorCode("channel_rpm_limit_exceeded"), http.StatusTooManyRequests, types.ErrOptionWithSkipRetry())
+	}
 	common.SetContextKey(c, constant.ContextKeyChannelId, channel.Id)
 	common.SetContextKey(c, constant.ContextKeyChannelName, channel.Name)
 	common.SetContextKey(c, constant.ContextKeyChannelType, channel.Type)
 	common.SetContextKey(c, constant.ContextKeyChannelCreateTime, channel.CreatedTime)
-	common.SetContextKey(c, constant.ContextKeyChannelSetting, channel.GetSetting())
+	common.SetContextKey(c, constant.ContextKeyChannelSetting, channelSetting)
 	common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, channel.GetOtherSettings())
 	switch channel.Type {
 	case constant.ChannelTypeTaskPlugin:

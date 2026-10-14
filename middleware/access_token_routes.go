@@ -58,6 +58,29 @@ var accessTokenRouteRules = map[string]accessTokenRouteRule{
 	"GET /api/verify/methods":             accessTokenAnyRule,
 	"POST /api/verify":                    accessTokenAnyRule,
 
+	// Custom financial and model administration routes.
+	"GET /api/user/affiliate_commission/summary":       accessTokenScopeRule("wallet:read"),
+	"GET /api/user/affiliate_commission/records":       accessTokenScopeRule("wallet:read"),
+	"GET /api/user/affiliate_commission/transfers":     accessTokenScopeRule("wallet:read"),
+	"POST /api/user/affiliate_commission/transfer":     accessTokenScopeRule("wallet:write"),
+	"GET /api/user/bargain":                            accessTokenScopeRule("wallet:read"),
+	"POST /api/user/bargain/start":                     accessTokenScopeRule("wallet:write"),
+	"GET /api/user/affiliate_commission/admin/records": accessTokenScopeRule("billing:read"),
+	"PUT /api/user/:id/bonus_quota_model_rpm":          accessTokenScopeRule("user:write"),
+	"POST /api/models/sync_marketplace":                accessTokenScopeRule("model:write"),
+
+	"GET /api/user/oidc/grants":        accessTokenSessionRule,
+	"PATCH /api/user/oidc/grants/:id":  accessTokenSessionRule,
+	"DELETE /api/user/oidc/grants/:id": accessTokenSessionRule,
+
+	// OIDC client credentials require a browser session and step-up proof.
+	"GET /api/oidc/client":             accessTokenSessionRule,
+	"GET /api/oidc/client/:id":         accessTokenSessionRule,
+	"POST /api/oidc/client":            accessTokenSessionRule,
+	"PUT /api/oidc/client/:id":         accessTokenSessionRule,
+	"DELETE /api/oidc/client/:id":      accessTokenSessionRule,
+	"POST /api/oidc/client/:id/secret": accessTokenSessionRule,
+
 	// router/api-router.go: /api/user (self)
 	"GET /api/user/sessions":                       accessTokenSessionRule,
 	"DELETE /api/user/sessions/:sid":               accessTokenSessionRule,

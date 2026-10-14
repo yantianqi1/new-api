@@ -51,6 +51,9 @@ const creemProductDialogSchema = z.object({
   productId: z.string().min(1, 'Product ID is required'),
   price: z.number().min(0.01, 'Price must be greater than 0'),
   quota: z.number().min(1, 'Quota must be at least 1'),
+  commissionBaseQuota: z
+    .number()
+    .min(0, 'Commission base quota must be at least 0'),
   currency: z.enum(['USD', 'EUR']),
 })
 
@@ -84,19 +87,24 @@ export function CreemProductDialog({
       productId: '',
       price: 0,
       quota: 0,
+      commissionBaseQuota: 0,
       currency: 'USD',
     },
   })
 
   useEffect(() => {
     if (editData) {
-      form.reset(editData)
+      form.reset({
+        ...editData,
+        commissionBaseQuota: editData.commissionBaseQuota ?? 0,
+      })
     } else {
       form.reset({
         name: '',
         productId: '',
         price: 0,
         quota: 0,
+        commissionBaseQuota: 0,
         currency: 'USD',
       })
     }
@@ -108,6 +116,7 @@ export function CreemProductDialog({
       productId: values.productId,
       price: values.price,
       quota: values.quota,
+      commissionBaseQuota: values.commissionBaseQuota,
       currency: values.currency,
     }
     onSave(data)
@@ -252,6 +261,30 @@ export function CreemProductDialog({
                 </FormControl>
                 <FormDescription>
                   {t('Amount of quota to credit to user account.')}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='commissionBaseQuota'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Commission Base Quota')}</FormLabel>
+                <FormControl>
+                  <Input
+                    type='number'
+                    min={0}
+                    placeholder={t('e.g., 500000')}
+                    {...safeNumberFieldProps(field)}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'Paid-equivalent quota used for affiliate commission. Exclude gifted quota; use 0 to disable commission for this product.'
+                  )}
                 </FormDescription>
                 <FormMessage />
               </FormItem>

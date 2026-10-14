@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { OIDCProviderSettings } from '@/features/oidc-provider'
+
 import type { AuthSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 import { BasicAuthSection } from './basic-auth-section'
@@ -25,6 +27,11 @@ import { OAuthSection } from './oauth-section'
 import { PasskeySection } from './passkey-section'
 
 const AUTH_SECTIONS = [
+  {
+    id: 'oidc-provider',
+    titleKey: 'OIDC Provider',
+    build: () => <OIDCProviderSettings />,
+  },
   {
     id: 'basic-auth',
     titleKey: 'Basic Authentication',

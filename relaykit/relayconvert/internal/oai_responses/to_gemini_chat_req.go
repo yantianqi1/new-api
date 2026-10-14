@@ -2,6 +2,7 @@ package oairesponses
 
 import (
 	"fmt"
+	"net/http"
 	"slices"
 	"strings"
 
@@ -241,7 +242,7 @@ func responsesContentPartToGeminiParts(c context.Context, part map[string]any) (
 			return nil, fmt.Errorf("get file data from '%s' failed: %w", source.GetIdentifier(), err)
 		}
 		if !sharedgemini.IsSupportedMimeType(mimeType) {
-			return nil, fmt.Errorf("mime type is not supported by Gemini: '%s', url: '%s', supported types are: %v", mimeType, source.GetIdentifier(), sharedgemini.SupportedMimeTypesList())
+			return nil, types.NewErrorWithStatusCode(fmt.Errorf("mime type is not supported by Gemini: %q; supported types are: %v", mimeType, sharedgemini.SupportedMimeTypesList()), types.ErrorCodeConvertRequestFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
 		return []dto.GeminiPart{
 			{

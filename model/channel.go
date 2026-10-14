@@ -1020,6 +1020,19 @@ func (channel *Channel) ValidateSettings() error {
 			return fmt.Errorf("advanced_custom is required")
 		}
 	}
+	switch channelParams.RpmOverLimitAction {
+	case "", dto.ChannelRpmOverLimitActionError, dto.ChannelRpmOverLimitActionRandomDrop:
+	default:
+		return fmt.Errorf("rpm_over_limit_action must be one of: error, random_drop")
+	}
+	if channelParams.RpmLimit < 0 {
+		return fmt.Errorf("rpm_limit must be >= 0")
+	}
+	if channelParams.RpmOverLimitAction == dto.ChannelRpmOverLimitActionRandomDrop {
+		if channelParams.RpmDropRate < 0 || channelParams.RpmDropRate > 100 {
+			return fmt.Errorf("rpm_drop_rate must be between 0 and 100")
+		}
+	}
 	if channelOtherSettings.AdvancedCustom != nil {
 		if err := channelOtherSettings.AdvancedCustom.Validate(); err != nil {
 			return err

@@ -18,21 +18,58 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { z } from 'zod'
 
+export const REDEMPTION_QUOTA_TYPE = {
+  PAID: 'paid',
+  BONUS: 'bonus',
+} as const
+
+export const REDEMPTION_QUOTA_TYPE_VALUES = [
+  REDEMPTION_QUOTA_TYPE.PAID,
+  REDEMPTION_QUOTA_TYPE.BONUS,
+] as const
+
+export type RedemptionQuotaType = (typeof REDEMPTION_QUOTA_TYPE_VALUES)[number]
+
 // ============================================================================
 // Redemption Schema & Types
 // ============================================================================
 
 export const redemptionSchema = z.object({
   id: z.number(),
-  user_id: z.number(),
+  user_id: z
+    .number()
+    .nullish()
+    .transform((val) => val ?? 0),
   name: z.string(),
   key: z.string(),
   status: z.number(), // 1: enabled, 2: disabled, 3: used
   quota: z.number(),
+  quota_type: z
+    .preprocess(
+      (val) =>
+        typeof val === 'string' && val ? val : REDEMPTION_QUOTA_TYPE.PAID,
+      z.enum(REDEMPTION_QUOTA_TYPE_VALUES)
+    )
+    .default(REDEMPTION_QUOTA_TYPE.PAID),
+  max_uses: z
+    .preprocess(
+      (val) => (typeof val === 'number' && val > 0 ? val : 1),
+      z.number()
+    )
+    .default(1),
+  used_count: z
+    .preprocess(
+      (val) => (typeof val === 'number' && val >= 0 ? val : 0),
+      z.number()
+    )
+    .default(0),
   created_time: z.number(),
   redeemed_time: z.number(),
   expired_time: z.number(), // 0 for never expires
-  used_user_id: z.number(),
+  used_user_id: z
+    .number()
+    .nullish()
+    .transform((val) => val ?? 0),
 })
 
 export type Redemption = z.infer<typeof redemptionSchema>
@@ -74,6 +111,8 @@ export interface RedemptionFormData {
   id?: number
   name: string
   quota: number
+  quota_type?: RedemptionQuotaType
+  max_uses: number
   expired_time: number
   count?: number // Only for create
   status?: number // Only for status update

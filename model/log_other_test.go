@@ -1,6 +1,7 @@
 package model
 
 import (
+	"github.com/QuantumNous/new-api/common"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -81,4 +82,16 @@ func TestLogOtherJSONStringDoesNotMutateReceiver(t *testing.T) {
 
 	require.Equal(t, before, after)
 	require.Equal(t, first, second)
+}
+
+func TestUserLogHidesUpstreamModelsWithoutChangingPrivilegedViews(t *testing.T) {
+	previous := common.HideUserLogUpstreamModelEnabled
+	t.Cleanup(func() { common.HideUserLogUpstreamModelEnabled = previous })
+	source := `{"is_model_mapped":true,"upstream_model_name":"private-model","response_model":"provider-model","bonus_quota":20,"paid_quota":5,"billing_marker":"free"}`
+	common.HideUserLogUpstreamModelEnabled = true
+	assert.JSONEq(t, `{"bonus_quota":20,"paid_quota":5,"billing_marker":"free"}`, formatLogOtherJSON(source, logOtherVisibilityUser))
+	assert.JSONEq(t, source, formatLogOtherJSON(source, logOtherVisibilityAdmin))
+	assert.JSONEq(t, source, formatLogOtherJSON(source, logOtherVisibilityRoot))
+	common.HideUserLogUpstreamModelEnabled = false
+	assert.JSONEq(t, source, formatLogOtherJSON(source, logOtherVisibilityUser))
 }

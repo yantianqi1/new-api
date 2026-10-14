@@ -93,3 +93,9 @@ const (
 	MsgChannelUpstreamUpdateFailedChannels  = "channel.upstream_update_failed_channels"
 	MsgChannelUpstreamUpdateMoreOmitted     = "channel.upstream_update_more_omitted"
 )
+
+const (
+	MsgRedemptionMaxUsesInvalid                  = "redemption.max_uses_invalid"
+	MsgDistributorBonusQuotaModelRpmLimit        = "distributor.bonus_quota_model_rpm_limit_exceeded"
+	MsgDistributorBonusQuotaModelRpmByModelLimit = "distributor.bonus_quota_model_rpm_by_model_limit_exceeded"
+)

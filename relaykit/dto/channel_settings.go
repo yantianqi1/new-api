@@ -35,6 +35,15 @@ type ChannelSettings struct {
 	// TLSInsecureSkipVerify accepts upstream certificates that fail
 	// verification, such as self-signed ones, for this channel only.
 	TLSInsecureSkipVerify bool `json:"tls_insecure_skip_verify,omitempty"`
+	// RpmLimit 是该渠道每分钟允许的最大请求数（对渠道内所有模型共享计数），0 表示不限制。
+	RpmLimit int `json:"rpm_limit,omitempty"`
+	// RpmOverLimitAction 决定超过 RpmLimit 时的处理方式：
+	//   error       - 所有超限请求直接返回 429（默认）
+	//   random_drop - 超限请求按 RpmDropRate 概率随机丢弃（429），其余放行
+	RpmOverLimitAction string `json:"rpm_over_limit_action,omitempty"`
+	// RpmDropRate 是 random_drop 模式下超限请求被拒绝的概率（百分比 1-100），
+	// 0 表示使用默认值 DefaultChannelRpmDropRate。
+	RpmDropRate int `json:"rpm_drop_rate,omitempty"`
 }
 
 // BindsTaskPlugin reports whether the channel is bound to the task plugin,
@@ -689,3 +698,9 @@ func validateAdvancedCustomRouteAuth(index int, auth *AdvancedCustomRouteAuth) e
 		return fmt.Errorf("advanced_custom.advanced_routes[%d].auth.type is invalid: %s", index, auth.Type)
 	}
 }
+
+const (
+	ChannelRpmOverLimitActionError      = "error"
+	ChannelRpmOverLimitActionRandomDrop = "random_drop"
+	DefaultChannelRpmDropRate           = 50
+)

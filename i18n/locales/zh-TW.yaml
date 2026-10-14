@@ -74,3 +74,7 @@ channel.upstream_update_added_models: "新增模型範例（顯示 {{.Shown}}/{{
 channel.upstream_update_removed_models: "刪除模型範例（顯示 {{.Shown}}/{{.Total}}）：{{.Models}}"
 channel.upstream_update_failed_channels: "失敗管道 ID（顯示 {{.Shown}}/{{.Total}}）：{{.Ids}}"
 channel.upstream_update_more_omitted: "（其餘 {{.Count}} 個已省略）"
+
+redemption.max_uses_invalid: "每個兌換碼的可用次數必須介於已使用次數和 100000 之間"
+distributor.bonus_quota_model_rpm_limit_exceeded: "本站免費積分模型每人每分鐘最多請求 {{.Limit}} 次，請稍後重試"
+distributor.bonus_quota_model_rpm_by_model_limit_exceeded: "免費積分模型 {{.Model}} 每人每分鐘最多請求 {{.Limit}} 次，請稍後重試"

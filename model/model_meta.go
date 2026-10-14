@@ -545,3 +545,15 @@ func parseModelSyncFilter(syncOfficial string) (value int, ok bool) {
 		return n, true
 	}
 }
+
+func IsModelEnabled(modelName string) (bool, error) {
+	var metadata Model
+	err := DB.Select("status").Where("model_name = ?", modelName).First(&metadata).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return metadata.Status == 1, nil
+}

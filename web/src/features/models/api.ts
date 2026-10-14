@@ -650,3 +650,16 @@ export async function deleteModels(
   })
   return res.data
 }
+
+export async function syncMarketplaceModels(): Promise<{
+  success: boolean
+  message?: string
+  data?: {
+    created_models: number
+    existing_models: number
+    total_models: number
+  }
+}> {
+  const response = await api.post('/api/models/sync_marketplace')
+  return response.data
+}

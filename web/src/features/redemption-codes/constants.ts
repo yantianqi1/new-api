@@ -20,6 +20,8 @@ import type { TFunction } from 'i18next'
 
 import type { StatusBadgeProps } from '@/components/status-badge'
 
+import { REDEMPTION_QUOTA_TYPE, type RedemptionQuotaType } from './types'
+
 // ============================================================================
 // Redemption Status Configuration
 // ============================================================================
@@ -33,6 +35,40 @@ export const REDEMPTION_STATUS = {
 export const REDEMPTION_STATUS_VALUES = Object.values(REDEMPTION_STATUS).map(
   (value) => String(value)
 ) as `${number}`[]
+
+// ============================================================================
+// Redemption Quota Type Configuration
+// ============================================================================
+
+export const REDEMPTION_QUOTA_TYPES: Record<
+  RedemptionQuotaType,
+  Pick<StatusBadgeProps, 'variant'> & {
+    labelKey: string
+    optionLabelKey: string
+    descriptionKey: string
+  }
+> = {
+  [REDEMPTION_QUOTA_TYPE.PAID]: {
+    labelKey: 'Paid balance',
+    optionLabelKey: 'Increase balance',
+    descriptionKey: 'Adds to recharge and redemption balance.',
+    variant: 'neutral',
+  },
+  [REDEMPTION_QUOTA_TYPE.BONUS]: {
+    labelKey: 'Free points',
+    optionLabelKey: 'Increase free points',
+    descriptionKey: 'Adds to the user points balance.',
+    variant: 'success',
+  },
+}
+
+export function normalizeRedemptionQuotaType(
+  value: string | undefined
+): RedemptionQuotaType {
+  return value === REDEMPTION_QUOTA_TYPE.BONUS
+    ? REDEMPTION_QUOTA_TYPE.BONUS
+    : REDEMPTION_QUOTA_TYPE.PAID
+}
 
 // labelKey values are i18n keys; use t(config.labelKey) in components
 export const REDEMPTION_STATUSES: Record<
@@ -92,6 +128,8 @@ export const REDEMPTION_VALIDATION = {
   NAME_MAX_LENGTH: 20,
   COUNT_MIN: 1,
   COUNT_MAX: 100,
+  MAX_USES_MIN: 1,
+  MAX_USES_MAX: 100000,
 } as const
 
 // ============================================================================
@@ -123,6 +161,10 @@ export function getRedemptionFormErrorMessages(t: TFunction) {
     COUNT_INVALID: t(ERROR_MESSAGES.COUNT_INVALID, {
       min: REDEMPTION_VALIDATION.COUNT_MIN,
       max: REDEMPTION_VALIDATION.COUNT_MAX,
+    }),
+    MAX_USES_INVALID: t('Uses per code must be between {{min}} and {{max}}', {
+      min: REDEMPTION_VALIDATION.MAX_USES_MIN,
+      max: REDEMPTION_VALIDATION.MAX_USES_MAX,
     }),
     EXPIRED_TIME_INVALID: t(ERROR_MESSAGES.EXPIRED_TIME_INVALID),
   } as const

@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { SettingsPage } from '../components/settings-page'
 import type { BillingSettings } from '../types'
+import { PROMOTIONS_DEFAULT_OPTIONS } from './promotions-schema'
 import {
   BILLING_DEFAULT_SECTION,
   getBillingSectionContent,
@@ -25,10 +26,12 @@ import {
 } from './section-registry.tsx'
 
 const defaultBillingSettings: BillingSettings = {
+  ...PROMOTIONS_DEFAULT_OPTIONS,
   QuotaForNewUser: 0,
   QuotaForInviter: 0,
   QuotaForInvitee: 0,
   TopUpLink: '',
+  'general_setting.model_square_link': '',
   'quota_setting.enable_free_model_pre_consume': true,
   'quota_setting.trust_quota_usd': 10,
   'quota_setting.pre_consume_multiplier': 1,
@@ -47,6 +50,7 @@ const defaultBillingSettings: BillingSettings = {
   ImageRatio: '',
   AudioRatio: '',
   AudioCompletionRatio: '',
+  BonusQuotaModels: '{}',
   ExposeRatioEnabled: false,
   'billing_setting.billing_mode': '{}',
   'billing_setting.billing_expr': '{}',
@@ -69,6 +73,7 @@ const defaultBillingSettings: BillingSettings = {
   PayMethods: '',
   'payment_setting.amount_options': '',
   'payment_setting.amount_discount': '',
+  'payment_setting.affiliate_commission_rate_basis_points': 0,
   'payment_setting.compliance_confirmed': false,
   'payment_setting.compliance_terms_version': '',
   'payment_setting.compliance_confirmed_at': 0,

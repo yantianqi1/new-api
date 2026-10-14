@@ -26,6 +26,7 @@ import { useSystemConfigStore } from '@/stores/system-config-store'
 
 type UserQuotaCellProps = {
   remaining: number
+  bonusQuota?: number
   used: number
 }
 
@@ -35,36 +36,55 @@ export function UserQuotaCell(props: UserQuotaCellProps) {
 
   const { meta: currency } = getCurrencyDisplay()
   const quotaUnit = currency.kind === 'tokens' ? t('Tokens') : currency.symbol
-  const hasQuota = props.remaining !== 0 || props.used !== 0
+  const bonusQuota = props.bonusQuota ?? 0
+  const totalRemaining = props.remaining + bonusQuota
+  const hasQuota = props.remaining !== 0 || bonusQuota !== 0 || props.used !== 0
   const formattedRemaining = formatQuotaWithCurrency(props.remaining, {
+    showSymbol: false,
+  })
+  const formattedBonus = formatQuotaWithCurrency(bonusQuota, {
+    showSymbol: false,
+  })
+  const formattedTotalRemaining = formatQuotaWithCurrency(totalRemaining, {
     showSymbol: false,
   })
   const formattedUsed = formatQuotaWithCurrency(props.used, {
     showSymbol: false,
   })
 
+  const details = [
+    { label: t('Available Balance'), value: formattedTotalRemaining },
+  ]
+  if (bonusQuota > 0) {
+    details.push({ label: t('Paid Balance'), value: formattedRemaining })
+    details.push({ label: t('Points Balance'), value: formattedBonus })
+  }
+  details.push({ label: t('Total Used'), value: formattedUsed })
+
   return (
     <QuotaDetailsPopover
       title={`${t('Quota')} (${quotaUnit})`}
       triggerLabel={
         hasQuota
-          ? `${t('Available Balance')} ${formattedRemaining}; ${t('Used amount')} ${formattedUsed}`
+          ? `${t('Available Balance')} ${formattedTotalRemaining}; ${t('Used amount')} ${formattedUsed}`
           : t('No Quota')
       }
-      details={[
-        { label: t('Available Balance'), value: formattedRemaining },
-        { label: t('Total Used'), value: formattedUsed },
-      ]}
+      details={details}
     >
       {hasQuota ? (
         <span className='grid min-w-0 grid-cols-1 gap-y-1 text-sm tabular-nums'>
           <span
             className={cn(
-              props.remaining < 0 && 'text-destructive',
-              props.remaining === 0 && 'text-muted-foreground'
+              totalRemaining < 0 && 'text-destructive',
+              totalRemaining === 0 && 'text-muted-foreground'
             )}
           >
-            {formattedRemaining}
+            {formattedTotalRemaining}
+            {bonusQuota > 0 && (
+              <span className='text-muted-foreground ml-1 text-xs font-normal'>
+                ({formattedRemaining} + {formattedBonus})
+              </span>
+            )}
           </span>
           <span
             data-table-text='secondary'

@@ -60,6 +60,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   previewModelPricing,
@@ -274,6 +275,7 @@ export const ModelPricingEditorPanel = forwardRef<
       imageRatio: '',
       audioRatio: '',
       audioCompletionRatio: '',
+      allowBonusQuota: false,
     },
   })
   const watchedValues = form.watch()
@@ -366,6 +368,7 @@ export const ModelPricingEditorPanel = forwardRef<
         imageRatio: editData.imageRatio || '',
         audioRatio: editData.audioRatio || '',
         audioCompletionRatio: editData.audioCompletionRatio || '',
+        allowBonusQuota: editData.bonusQuotaEnabled === true,
       })
       setPricingMode(initialPricingMode)
       setBillingExpr(initialBillingExpr)
@@ -381,6 +384,7 @@ export const ModelPricingEditorPanel = forwardRef<
         imageRatio: '',
         audioRatio: '',
         audioCompletionRatio: '',
+        allowBonusQuota: false,
       })
       setPricingMode('tiered_expr')
       setBillingExpr(DEFAULT_TOKEN_BILLING_EXPR)
@@ -693,6 +697,7 @@ export const ModelPricingEditorPanel = forwardRef<
         imageRatio: values.imageRatio || '',
         audioRatio: values.audioRatio || '',
         audioCompletionRatio: values.audioCompletionRatio || '',
+        bonusQuotaEnabled: values.allowBonusQuota,
       }
 
       if (pricingMode === 'tiered_expr') {
@@ -908,6 +913,31 @@ export const ModelPricingEditorPanel = forwardRef<
                 )}
 
                 <PricingCurrencySelector siteCurrency={siteCurrency} />
+
+                <FormField
+                  control={form.control}
+                  name='allowBonusQuota'
+                  render={({ field }) => (
+                    <FormItem className='rounded-lg border p-3'>
+                      <div className='flex items-center justify-between gap-4'>
+                        <div className='min-w-0'>
+                          <FormLabel>{t('Allow points deduction')}</FormLabel>
+                          <FormDescription>
+                            {t(
+                              'Use points first for this model, then paid balance if points are insufficient.'
+                            )}
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </div>
+                    </FormItem>
+                  )}
+                />
 
                 <TaskPluginPricingEditor
                   key={`${editorReloadToken}:${watchedValues.name}`}

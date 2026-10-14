@@ -335,3 +335,12 @@ func enrichModels(models []*model.Model) error {
 	}
 	return nil
 }
+
+func SyncMarketplaceModels(c *gin.Context) {
+	result, err := model.SyncModelsFromMarketplace()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, result)
+}

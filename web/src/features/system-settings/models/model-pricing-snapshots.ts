@@ -31,6 +31,7 @@ export type ModelPricingSnapshotInput = {
   imageRatio: string
   audioRatio: string
   audioCompletionRatio: string
+  bonusQuotaModels?: string
   billingMode: string
   billingExpr: string
   pluginBillingExpr?: string
@@ -47,6 +48,7 @@ export type ModelPricingSnapshot = {
   imageRatio?: string
   audioRatio?: string
   audioCompletionRatio?: string
+  bonusQuotaEnabled?: boolean
   billingMode?: string
   billingExpr?: string
   requestRuleExpr?: string
@@ -164,6 +166,7 @@ export const buildModelSnapshots = ({
   imageRatio,
   audioRatio,
   audioCompletionRatio,
+  bonusQuotaModels,
   billingMode,
   billingExpr,
   pluginBillingExpr = '{}',
@@ -208,6 +211,13 @@ export const buildModelSnapshots = ({
     fallback: {},
     context: 'billing expression',
   })
+  const bonusQuotaMap = safeJsonParse<Record<string, boolean>>(
+    bonusQuotaModels,
+    {
+      fallback: {},
+      context: 'points deduction models',
+    }
+  )
 
   const pluginExprMap = safeJsonParse<Record<string, string>>(
     pluginBillingExpr,
@@ -235,6 +245,7 @@ export const buildModelSnapshots = ({
     ...Object.keys(audioCompletionMap),
     ...Object.keys(billingModeMap),
     ...Object.keys(billingExprMap),
+    ...Object.keys(bonusQuotaMap),
   ])
 
   return [...modelNames].map((name) => {
@@ -246,6 +257,7 @@ export const buildModelSnapshots = ({
     const image = imageMap[name]?.toString() || ''
     const audio = audioMap[name]?.toString() || ''
     const audioCompletion = audioCompletionMap[name]?.toString() || ''
+    const bonusQuotaEnabled = bonusQuotaMap[name] === true
 
     const modeForModel = billingModeMap[name]
     if (modeForModel === 'tiered_expr') {
@@ -266,6 +278,7 @@ export const buildModelSnapshots = ({
         imageRatio: image,
         audioRatio: audio,
         audioCompletionRatio: audioCompletion,
+        bonusQuotaEnabled,
         hasConflict: false,
       }
     }
@@ -281,6 +294,7 @@ export const buildModelSnapshots = ({
       imageRatio: image,
       audioRatio: audio,
       audioCompletionRatio: audioCompletion,
+      bonusQuotaEnabled,
       billingMode: price !== '' ? 'per-request' : 'per-token',
       hasConflict:
         price !== '' &&
@@ -306,6 +320,7 @@ export const getSnapshotSignature = (snapshot?: ModelPricingSnapshot) => {
     imageRatio: snapshot.imageRatio || '',
     audioRatio: snapshot.audioRatio || '',
     audioCompletionRatio: snapshot.audioCompletionRatio || '',
+    bonusQuotaEnabled: snapshot.bonusQuotaEnabled === true,
     billingMode: snapshot.billingMode || 'per-token',
     billingExpr: snapshot.billingExpr || '',
     requestRuleExpr: snapshot.requestRuleExpr || '',

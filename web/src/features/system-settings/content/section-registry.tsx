@@ -24,6 +24,7 @@ import { ChatSettingsSection } from './chat-settings-section'
 import { DashboardSection } from './dashboard-section'
 import { DrawingSettingsSection } from './drawing-settings-section'
 import { FAQSection } from './faq-section'
+import { JsonToggleSection } from './json-toggle-section'
 import { UptimeKumaSection } from './uptime-kuma-section'
 
 /**
@@ -113,6 +114,24 @@ const CONTENT_SECTIONS = [
           MjModeClearEnabled: settings.MjModeClearEnabled,
           MjActionCheckSuccessEnabled: settings.MjActionCheckSuccessEnabled,
         }}
+      />
+    ),
+  },
+  {
+    id: 'activity-bar',
+    titleKey: 'Activity Bar',
+    build: (settings: ContentSettings) => (
+      <JsonToggleSection
+        title='Activity Bar'
+        toggleDescription='Display a scrolling marquee on the console and landing page'
+        optionKey='console_setting.activity_bar_items'
+        enabledKey='console_setting.activity_bar_enabled'
+        defaultEnabled={settings['console_setting.activity_bar_enabled']}
+        defaultValue={settings['console_setting.activity_bar_items']}
+        textareaLabel='Activity Bar Items JSON'
+        textareaDescription='JSON list of items configured for the activity marquee'
+        placeholder='[{"title": "Activity Name", "link": "/pricing", "tag": "New"}]'
+        value={settings['console_setting.activity_bar_items']}
       />
     ),
   },

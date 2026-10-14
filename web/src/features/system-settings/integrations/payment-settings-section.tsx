@@ -143,6 +143,7 @@ const paymentSchema = z.object({
       })
     }
   }),
+  AffiliateCommissionRatePercent: z.coerce.number().min(0).max(100),
   StripeApiSecret: z.string(),
   StripeWebhookSecret: z.string(),
   StripePriceId: z.string(),
@@ -419,6 +420,15 @@ export function PaymentSettingsSection({
   }, [defaultsSignature, form])
 
   const onSubmit = async (values: PaymentFormValues) => {
+    if (
+      Math.abs(
+        values.AffiliateCommissionRatePercent * 100 -
+          Math.round(values.AffiliateCommissionRatePercent * 100)
+      ) >= 1e-8
+    ) {
+      toast.error(t('Use at most two decimal places'))
+      return
+    }
     const sanitized = {
       PayAddress: removeTrailingSlash(values.PayAddress),
       EpayId: values.EpayId.trim(),
@@ -429,6 +439,7 @@ export function PaymentSettingsSection({
       PayMethods: values.PayMethods.trim(),
       AmountOptions: values.AmountOptions.trim(),
       AmountDiscount: values.AmountDiscount.trim(),
+      AffiliateCommissionRatePercent: values.AffiliateCommissionRatePercent,
       StripeApiSecret: values.StripeApiSecret.trim(),
       StripeWebhookSecret: values.StripeWebhookSecret.trim(),
       StripePriceId: values.StripePriceId.trim(),
@@ -473,6 +484,8 @@ export function PaymentSettingsSection({
       PayMethods: initialRef.current.PayMethods.trim(),
       AmountOptions: initialRef.current.AmountOptions.trim(),
       AmountDiscount: initialRef.current.AmountDiscount.trim(),
+      AffiliateCommissionRatePercent:
+        initialRef.current.AffiliateCommissionRatePercent,
       StripeApiSecret: initialRef.current.StripeApiSecret.trim(),
       StripeWebhookSecret: initialRef.current.StripeWebhookSecret.trim(),
       StripePriceId: initialRef.current.StripePriceId.trim(),
@@ -561,6 +574,16 @@ export function PaymentSettingsSection({
       updates.push({
         key: 'payment_setting.amount_discount',
         value: sanitized.AmountDiscount,
+      })
+    }
+
+    if (
+      sanitized.AffiliateCommissionRatePercent !==
+      initial.AffiliateCommissionRatePercent
+    ) {
+      updates.push({
+        key: 'payment_setting.affiliate_commission_rate_basis_points',
+        value: Math.round(sanitized.AffiliateCommissionRatePercent * 100),
       })
     }
 
@@ -951,6 +974,31 @@ export function PaymentSettingsSection({
                       </FormItem>
                     )}
                   />
+
+                  <FormField
+                    control={form.control}
+                    name='AffiliateCommissionRatePercent'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Top-up commission rate (%)')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            min={0}
+                            max={100}
+                            step='0.01'
+                            {...safeNumberFieldProps(field)}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Direct inviters earn this percentage of eligible invitees’ actual online payment. Changes apply only to future completed payments.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
 
                 <FormField
@@ -1167,7 +1215,7 @@ export function PaymentSettingsSection({
                         <FormLabel>{t('Epay endpoint')}</FormLabel>
                         <FormControl>
                           <Input
-                            placeholder={t('https://pay.example.com')}
+                            placeholder='https://pay.example.com'
                             {...field}
                             onChange={(event) =>
                               field.onChange(event.target.value)
@@ -1190,7 +1238,7 @@ export function PaymentSettingsSection({
                         <FormLabel>{t('Callback address')}</FormLabel>
                         <FormControl>
                           <Input
-                            placeholder={t('https://gateway.example.com')}
+                            placeholder='https://gateway.example.com'
                             {...field}
                             onChange={(event) =>
                               field.onChange(event.target.value)

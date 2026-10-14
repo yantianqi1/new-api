@@ -11,9 +11,10 @@ import (
 )
 
 func TestSearchRedemptionsFiltersAndPaginates(t *testing.T) {
-	require.NoError(t, DB.AutoMigrate(&Redemption{}))
+	require.NoError(t, DB.AutoMigrate(&Redemption{}, &RedemptionRecord{}))
 	require.NoError(t, DB.Session(&gorm.Session{AllowGlobalUpdate: true}).Unscoped().Delete(&Redemption{}).Error)
 	t.Cleanup(func() {
+		require.NoError(t, DB.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&RedemptionRecord{}).Error)
 		require.NoError(t, DB.Session(&gorm.Session{AllowGlobalUpdate: true}).Unscoped().Delete(&Redemption{}).Error)
 	})
 
@@ -102,9 +103,10 @@ func TestSearchRedemptionsFiltersAndPaginates(t *testing.T) {
 
 func setupRedeemFixture(t *testing.T, quota int) (userId int, key string) {
 	t.Helper()
-	require.NoError(t, DB.AutoMigrate(&Redemption{}))
+	require.NoError(t, DB.AutoMigrate(&Redemption{}, &RedemptionRecord{}))
 	require.NoError(t, DB.Session(&gorm.Session{AllowGlobalUpdate: true}).Unscoped().Delete(&Redemption{}).Error)
 	t.Cleanup(func() {
+		require.NoError(t, DB.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&RedemptionRecord{}).Error)
 		require.NoError(t, DB.Session(&gorm.Session{AllowGlobalUpdate: true}).Unscoped().Delete(&Redemption{}).Error)
 		DB.Exec("DELETE FROM users")
 		DB.Exec("DELETE FROM logs")
@@ -207,4 +209,54 @@ func TestRedeemConcurrentSingleSuccess(t *testing.T) {
 	var user User
 	require.NoError(t, DB.First(&user, "id = ?", userId).Error)
 	assert.Equal(t, 300, user.Quota, "quota must be credited exactly once")
+}
+
+func TestRedeemMultiUseBonusRejectsDuplicateAndExhaustion(t *testing.T) {
+	userId, key := setupRedeemFixture(t, 500)
+	require.NoError(t, DB.Model(&Redemption{}).Where("key = ?", key).Updates(map[string]any{"quota_type": RedemptionQuotaTypeBonus, "max_uses": 2}).Error)
+	_, err := Redeem(key, userId)
+	require.NoError(t, err)
+	_, err = Redeem(key, userId)
+	require.ErrorIs(t, err, ErrRedeemFailed)
+	second := createReserveTestUser(t, 0)
+	_, err = Redeem(key, second.Id)
+	require.NoError(t, err)
+	third := createReserveTestUser(t, 0)
+	_, err = Redeem(key, third.Id)
+	require.ErrorIs(t, err, ErrRedeemFailed)
+	var user User
+	require.NoError(t, DB.First(&user, userId).Error)
+	assert.Equal(t, 500, user.BonusQuota)
+	assert.Zero(t, user.Quota)
+	var redemption Redemption
+	require.NoError(t, DB.First(&redemption, "key = ?", key).Error)
+	assert.Equal(t, 2, redemption.UsedCount)
+	assert.Equal(t, common.RedemptionCodeStatusUsed, redemption.Status)
+	var count int64
+	require.NoError(t, DB.Model(&RedemptionRecord{}).Where("redemption_id = ?", redemption.Id).Count(&count).Error)
+	assert.EqualValues(t, 2, count)
+}
+
+func TestRedemptionBackfillPreservesUsedCodes(t *testing.T) {
+	setupRedeemFixture(t, 500)
+	used := Redemption{Name: "legacy-used", Key: "legacy-used", Status: common.RedemptionCodeStatusUsed}
+	require.NoError(t, DB.Create(&used).Error)
+	for range 2 {
+		require.NoError(t, backfillRedemptionUsageLimits())
+	}
+	require.NoError(t, DB.First(&used, used.Id).Error)
+	assert.Equal(t, 1, used.MaxUses)
+	assert.Equal(t, 1, used.UsedCount)
+}
+
+func TestLegacyRedemptionBackfillPreventsSameUserReplayAfterCapacityIncrease(t *testing.T) {
+	userId, key := setupRedeemFixture(t, 500)
+	require.NoError(t, DB.Model(&Redemption{}).Where("key = ?", key).Updates(map[string]any{"status": common.RedemptionCodeStatusUsed, "used_user_id": userId}).Error)
+	require.NoError(t, backfillRedemptionUsageLimits())
+	require.NoError(t, DB.Model(&Redemption{}).Where("key = ?", key).Updates(map[string]any{"status": common.RedemptionCodeStatusEnabled, "max_uses": 2}).Error)
+	_, err := Redeem(key, userId)
+	require.ErrorIs(t, err, ErrRedeemFailed)
+	var count int64
+	require.NoError(t, DB.Model(&RedemptionRecord{}).Where("user_id = ?", userId).Count(&count).Error)
+	assert.EqualValues(t, 1, count)
 }

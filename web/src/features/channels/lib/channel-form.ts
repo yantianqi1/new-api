@@ -274,6 +274,9 @@ export const channelFormSchema = z
     responses_websocket_enabled: z.boolean().optional(),
     system_prompt: z.string().optional(),
     system_prompt_override: z.boolean().optional(),
+    rpm_limit: z.number().int().min(0).optional(),
+    rpm_over_limit_action: z.enum(['error', 'random_drop']).optional(),
+    rpm_drop_rate: z.number().int().min(1).max(100).optional(),
     // Type-specific settings (stored in settings JSON)
     is_enterprise_account: z.boolean().optional(), // OpenRouter specific
     vertex_key_type: z.enum(['json', 'api_key']).optional(), // Vertex AI specific
@@ -466,6 +469,9 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   responses_websocket_enabled: false,
   system_prompt: '',
   system_prompt_override: false,
+  rpm_limit: 0,
+  rpm_over_limit_action: 'error',
+  rpm_drop_rate: 50,
   // Type-specific settings
   is_enterprise_account: false,
   vertex_key_type: 'json',
@@ -507,6 +513,9 @@ export function transformChannelToFormDefaults(
     http_protocol: HTTP_PROTOCOL_AUTO as 'auto' | 'http1',
     http2_connection_shards: 1,
     tls_insecure_skip_verify: false,
+    rpm_limit: 0,
+    rpm_over_limit_action: 'error' as 'error' | 'random_drop',
+    rpm_drop_rate: 50,
     pass_through_body_enabled: false,
     responses_websocket_enabled: false,
     system_prompt: '',
@@ -529,6 +538,15 @@ export function transformChannelToFormDefaults(
         http_protocol: protocol,
         http2_connection_shards: protocol === HTTP_PROTOCOL_HTTP1 ? 1 : shards,
         tls_insecure_skip_verify: parsed.tls_insecure_skip_verify === true,
+        rpm_limit: typeof parsed.rpm_limit === 'number' ? parsed.rpm_limit : 0,
+        rpm_over_limit_action:
+          parsed.rpm_over_limit_action === 'random_drop'
+            ? 'random_drop'
+            : 'error',
+        rpm_drop_rate:
+          typeof parsed.rpm_drop_rate === 'number' && parsed.rpm_drop_rate > 0
+            ? parsed.rpm_drop_rate
+            : 50,
         pass_through_body_enabled: parsed.pass_through_body_enabled || false,
         responses_websocket_enabled:
           parsed.responses_websocket_enabled === true,
@@ -668,6 +686,14 @@ export function buildSettingJSON(formData: ChannelFormValues): string {
       formData.responses_websocket_enabled === true,
     system_prompt: formData.system_prompt || '',
     system_prompt_override: formData.system_prompt_override || false,
+  }
+
+  if ((formData.rpm_limit ?? 0) > 0) {
+    settingObj.rpm_limit = formData.rpm_limit
+    settingObj.rpm_over_limit_action = formData.rpm_over_limit_action ?? 'error'
+    if (formData.rpm_over_limit_action === 'random_drop') {
+      settingObj.rpm_drop_rate = formData.rpm_drop_rate ?? 50
+    }
   }
 
   const protocol = normalizeHttpProtocol(formData.http_protocol)

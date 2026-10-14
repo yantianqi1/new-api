@@ -1,0 +1,228 @@
+---
+/**
+ * 自定义侧边栏 —— 为每个一级分组注入品牌色图标 + 活跃分组高亮
+ *
+ * 实现方式：复制 Starlight 的 SidebarSublist 渲染逻辑，在 <summary> 上挂
+ * data-group-icon 属性，图标由 CSS 用 mask 绘制（无额外网络请求）。
+ * 折叠态、aria、sessionStorage 持久化等行为完全保留 Starlight 原生实现。
+ */
+import Icon from '/node_modules/@astrojs/starlight/user-components/Icon.astro';
+import Badge from '/node_modules/@astrojs/starlight/user-components/Badge.astro';
+import SidebarRestorePoint from '/node_modules/@astrojs/starlight/components/SidebarRestorePoint.astro';
+
+interface SidebarLink {
+	type: 'link';
+	label: string;
+	href: string;
+	isCurrent: boolean;
+	badge: { variant: string; class?: string; text: string } | undefined;
+	attrs: Record<string, unknown>;
+}
+interface SidebarGroup {
+	type: 'group';
+	label: string;
+	entries: SidebarEntry[];
+	collapsed: boolean;
+	badge: { variant: string; class?: string; text: string } | undefined;
+}
+type SidebarEntry = SidebarLink | SidebarGroup;
+
+/** 扁平化嵌套分组，用于判断当前页是否位于其中（决定 details 是否展开） */
+const flattenSidebar = (entries: SidebarEntry[]): SidebarLink[] =>
+	entries.flatMap((e) => (e.type === 'link' ? [e] : flattenSidebar(e.entries)));
+
+interface Props {
+	sublist: SidebarEntry[];
+	nested?: boolean;
+}
+
+const { sublist, nested } = Astro.props;
+
+/** 分组 slug → 图标名（Lucide 风格内联 SVG，见 <style> 中的 mask 定义） */
+const GROUP_ICONS: Record<string, string> = {
+	'开始使用': 'rocket',
+	'API 参考': 'code',
+	'编码工具': 'terminal',
+	'客户端与工具': 'grid',
+	排障: 'lifebuoy',
+	'Getting started': 'rocket',
+	'API reference': 'code',
+	'Coding tools': 'terminal',
+	'Clients & tools': 'grid',
+	Troubleshooting: 'lifebuoy',
+};
+
+const iconFor = (label: string) => GROUP_ICONS[label] || 'book';
+---
+
+<ul class:list={{ 'top-level': !nested }}>
+	{
+		sublist.map((entry) => (
+			<li>
+				{entry.type === 'link' ? (
+					<a
+						href={entry.href}
+						aria-current={entry.isCurrent && 'page'}
+						class:list={[{ large: !nested }, entry.attrs.class]}
+						{...entry.attrs}
+					>
+						<span>{entry.label}</span>
+						{entry.badge && (
+							<Badge
+								variant={entry.badge.variant}
+								class={entry.badge.class}
+								text={entry.badge.text}
+							/>
+						)}
+					</a>
+				) : (
+					<details
+						open={flattenSidebar(entry.entries).some((i) => i.isCurrent) || !entry.collapsed}
+					>
+						<SidebarRestorePoint />
+						<summary data-group-icon={iconFor(entry.label)}>
+							<span class="group-label">
+								<span class="large">{entry.label}</span>
+								{entry.badge && (
+									<Badge
+										variant={entry.badge.variant}
+										class={entry.badge.class}
+										text={entry.badge.text}
+									/>
+								)}
+							</span>
+							<Icon name="right-caret" class="caret" size="1.25rem" />
+						</summary>
+						<Astro.self sublist={entry.entries} nested />
+					</details>
+				)}
+			</li>
+		))
+	}
+</ul>
+
+<style>
+	@layer starlight.core {
+		ul {
+			--sl-sidebar-item-padding-inline: 0.5rem;
+			list-style: none;
+			padding: 0;
+		}
+
+		li {
+			overflow-wrap: anywhere;
+		}
+
+		ul ul li {
+			margin-inline-start: var(--sl-sidebar-item-padding-inline);
+			border-inline-start: 1px solid var(--sl-color-hairline-light);
+			padding-inline-start: var(--sl-sidebar-item-padding-inline);
+		}
+
+		.large {
+			font-size: var(--sl-text-lg);
+			font-weight: 600;
+			color: var(--sl-color-white);
+		}
+
+		.top-level > li + li {
+			margin-top: 0.75rem;
+		}
+
+		summary {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			min-height: 2.75rem;
+			padding: 0.2em var(--sl-sidebar-item-padding-inline);
+			line-height: 1.4;
+			cursor: pointer;
+			user-select: none;
+			border-radius: 8px;
+			transition: background-color 0.13s ease;
+		}
+		summary:hover {
+			background: hsl(var(--sl-hue-accent) 40% 60% / 0.08);
+		}
+		summary::marker,
+		summary::-webkit-details-marker {
+			display: none;
+		}
+
+		/* 分组图标：mask 绘制，继承文字色 */
+		.group-label {
+			display: inline-flex;
+			align-items: center;
+			gap: 0.55em;
+		}
+		summary[data-group-icon] .group-label::before {
+			content: '';
+			flex: none;
+			width: 1.05rem;
+			height: 1.05rem;
+			background: hsl(var(--sl-hue-accent) 70% 62%);
+			opacity: 0.72;
+			transition: opacity 0.16s ease, background-color 0.16s ease;
+		}
+		:root[data-theme='light'] summary[data-group-icon] .group-label::before {
+			color: hsl(var(--sl-hue-accent) 65% 48%);
+			background: currentColor;
+		}
+		/* 展开且含当前页的分组：图标点亮 */
+		details[open] summary[data-group-icon] .group-label::before {
+			opacity: 1;
+		}
+
+		.caret {
+			transition: transform 0.2s ease-in-out;
+			flex-shrink: 0;
+		}
+		:global([dir='rtl']) .caret {
+			transform: rotateZ(180deg);
+		}
+		[open] > summary .caret {
+			transform: rotateZ(90deg);
+		}
+
+		a {
+			display: flex;
+			align-items: center;
+			min-height: 2.75rem;
+			border-radius: 0.25rem;
+			text-decoration: none;
+			color: var(--sl-color-gray-2);
+			padding: 0.3em var(--sl-sidebar-item-padding-inline);
+			line-height: 1.4;
+		}
+
+		a:hover,
+		a:focus {
+			color: var(--sl-color-white);
+		}
+
+		[aria-current='page'],
+		[aria-current='page']:hover,
+		[aria-current='page']:focus {
+			font-weight: 600;
+			color: var(--sl-color-text-invert);
+			background-color: var(--sl-color-text-accent);
+		}
+
+		a > *:not(:last-child),
+		.group-label > *:not(:last-child) {
+			margin-inline-end: 0.25em;
+		}
+
+		@media (min-width: 50rem) {
+			.top-level > li + li {
+				margin-top: 0.5rem;
+			}
+			.large {
+				font-size: var(--sl-text-base);
+			}
+			a {
+				font-size: var(--sl-text-sm);
+			}
+		}
+	}
+</style>

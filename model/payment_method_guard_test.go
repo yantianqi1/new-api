@@ -88,13 +88,16 @@ func getUserQuotaForPaymentGuardTest(t *testing.T, userID int) int {
 	return user.Quota
 }
 
-func TestRechargeWaffoPancake_RejectsMismatchedPaymentMethod(t *testing.T) {
+func TestCompleteOnlineTopUpRejectsMismatchedPaymentMethod(t *testing.T) {
 	truncateTables(t)
 
 	insertUserForPaymentGuardTest(t, 101, 0)
 	insertTopUpForPaymentGuardTest(t, "waffo-pancake-guard", 101, PaymentProviderStripe)
 
-	err := RechargeWaffoPancake("waffo-pancake-guard")
+	_, err := CompleteOnlineTopUp(CompleteOnlineTopUpInput{
+		TradeNo:         "waffo-pancake-guard",
+		PaymentProvider: PaymentProviderWaffoPancake,
+	})
 	require.Error(t, err)
 
 	topUp := GetTopUpByTradeNo("waffo-pancake-guard")

@@ -24,6 +24,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { api } from '@/lib/api'
 
 import { SyncWizardDialog } from '../components/dialogs/sync-wizard-dialog'
+import { ModelsPrimaryButtons } from '../components/models-primary-buttons'
+import { ModelsProvider } from '../components/models-provider'
 import type { MetadataSyncCandidate, MetadataSyncPreview } from '../types'
 
 const preview: MetadataSyncPreview = {
@@ -701,4 +703,37 @@ describe('metadata sync preview', () => {
     expect(post).not.toHaveBeenCalled()
     client.clear()
   })
+})
+
+it('syncs enabled marketplace models and refreshes the latest model and pricing queries', async () => {
+  vi.restoreAllMocks()
+  const post = vi.spyOn(api, 'post').mockResolvedValue({
+    data: {
+      success: true,
+      data: { created_models: 2, existing_models: 3, total_models: 5 },
+    },
+  })
+  const client = new QueryClient({
+    defaultOptions: { mutations: { retry: false } },
+  })
+  const invalidate = vi.spyOn(client, 'invalidateQueries')
+  render(
+    <QueryClientProvider client={client}>
+      <ModelsProvider>
+        <ModelsPrimaryButtons />
+      </ModelsProvider>
+    </QueryClientProvider>
+  )
+  await userEvent.click(
+    screen.getByRole('button', { name: 'Sync Model Square' })
+  )
+  await waitFor(() =>
+    expect(post).toHaveBeenCalledWith('/api/models/sync_marketplace')
+  )
+  await waitFor(() =>
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['models'] })
+  )
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: ['pricing'] })
+  expect(screen.getByRole('button', { name: 'Sync metadata' })).toBeVisible()
+  client.clear()
 })

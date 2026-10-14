@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -97,6 +98,73 @@ func GetTopUpInfo(c *gin.Context) {
 		}
 	}
 
+	userId := c.GetInt("id")
+	userRole := c.GetInt("role")
+	isAdmin := userRole >= common.RoleAdminUser
+
+	userTierCounts, _ := model.GetUserSpecialTierPurchaseCounts(userId)
+	totalTierCounts, _ := model.GetAllSpecialTierPurchaseCounts()
+
+	type SpecialTierResponse struct {
+		operation_setting.SpecialTier
+		PurchasedCount     int64 `json:"purchased_count"`
+		UserPurchasedCount int64 `json:"user_purchased_count"`
+		UserPurchased      int64 `json:"user_purchased"`
+		UserCanPurchase    bool  `json:"user_can_purchase"`
+		RemainingStock     int   `json:"remaining_stock"`  // -1 表示无限制或对普通用户隐藏
+		HasStockLimit      bool  `json:"has_stock_limit"`  // 是否配置了全站库存限量
+		ShowStock          bool  `json:"show_stock"`       // 档位配置的开关值
+		IsStockVisible     bool  `json:"is_stock_visible"` // 当前请求用户是否可见库存：管理员恒为 true，普通用户受 show_stock 控制
+	}
+
+	allTiers := operation_setting.GetSpecialTiers()
+	specialTiers := make([]SpecialTierResponse, 0, len(allTiers))
+	for _, tier := range allTiers {
+		if !tier.Enabled {
+			continue
+		}
+		userCount := userTierCounts[tier.Id]
+		totalCount := totalTierCounts[tier.Id]
+		userLimit := tier.UserLimit
+		canBuy := true
+		if userLimit > 0 {
+			canBuy = userCount < int64(userLimit)
+		}
+		remaining := -1
+		if tier.TotalLimit > 0 {
+			remaining = tier.TotalLimit - int(totalCount)
+			if remaining <= 0 {
+				remaining = 0
+				canBuy = false
+			}
+		}
+
+		hasStockLimit := tier.TotalLimit > 0
+		stockConfigured := tier.IsStockVisible()
+		isStockVisible := isAdmin || stockConfigured
+
+		resp := SpecialTierResponse{
+			SpecialTier:        tier,
+			PurchasedCount:     totalCount,
+			UserPurchasedCount: userCount,
+			UserPurchased:      userCount,
+			UserCanPurchase:    canBuy,
+			RemainingStock:     remaining,
+			HasStockLimit:      hasStockLimit,
+			ShowStock:          stockConfigured,
+			IsStockVisible:     isStockVisible,
+		}
+
+		// 若普通用户且开关关闭，隐藏具体剩余库存和总限量数字，避免前端网络抓包泄露库存
+		if !isAdmin && !stockConfigured {
+			resp.RemainingStock = -1
+			resp.PurchasedCount = 0
+			resp.TotalLimit = 0
+		}
+
+		specialTiers = append(specialTiers, resp)
+	}
+
 	data := gin.H{
 		"enable_online_topup":              isEpayTopUpEnabled(),
 		"enable_stripe_topup":              isStripeTopUpEnabled(),
@@ -120,18 +188,27 @@ func GetTopUpInfo(c *gin.Context) {
 		"waffo_pancake_min_topup": setting.WaffoPancakeMinTopUp,
 		"amount_options":          operation_setting.GetPaymentSetting().AmountOptions,
 		"discount":                operation_setting.GetPaymentSetting().AmountDiscount,
-		"topup_link":              common.TopUpLink,
+		"special_tiers":           specialTiers,
+		"bargain": func() any {
+			info, _ := model.GetUserBargainInfo(userId)
+			return info
+		}(),
+		"topup_link": common.TopUpLink,
 	}
 	common.ApiSuccess(c, data)
 }
 
 type EpayRequest struct {
-	Amount        int64  `json:"amount"`
-	PaymentMethod string `json:"payment_method"`
+	Amount            int64  `json:"amount"`
+	PaymentMethod     string `json:"payment_method"`
+	TierId            string `json:"tier_id"`
+	BargainActivityId int    `json:"bargain_activity_id"`
 }
 
 type AmountRequest struct {
-	Amount int64 `json:"amount"`
+	Amount            int64  `json:"amount"`
+	TierId            string `json:"tier_id"`
+	BargainActivityId int    `json:"bargain_activity_id"`
 }
 
 func GetEpayClient() *epay.Client {
@@ -287,21 +364,107 @@ func RequestEpay(c *gin.Context) {
 		paymentError(c, common.NewMessage("Invalid parameters"))
 		return
 	}
-	if req.Amount < getMinTopup() {
-		paymentError(c, common.NewMessage("Top-up amount cannot be less than {{min}}", map[string]any{"min": getMinTopup()}))
+
+	id := c.GetInt("id")
+	var payMoney float64
+	var orderName string
+	var amount int64
+	var specialTierId string
+	var specialTierQuota int64
+	var bargainActivityId int
+	var bargainQuota int64
+
+	if req.BargainActivityId > 0 {
+		setting := operation_setting.GetBargainSetting()
+		if !setting.Enabled {
+			paymentError(c, common.NewMessage("Bargain activity is not enabled"))
+			return
+		}
+		activity, err := model.GetBargainActivityById(req.BargainActivityId)
+		if err != nil || activity == nil || activity.Status != model.BargainStatusActive || activity.UserId != id {
+			paymentError(c, common.NewMessage("Bargain activity does not exist or has ended"))
+			return
+		}
+		if setting.UserLimit > 0 {
+			completedCount, _ := model.CountUserCompletedBargain(id)
+			if completedCount >= int64(setting.UserLimit) {
+				paymentError(c, common.NewMessage("Bargain purchase limit reached"))
+				return
+			}
+		}
+		payMoney = activity.CurrentPrice
+		orderTitle := strings.TrimSpace(setting.Title)
+		if orderTitle == "" {
+			orderTitle = "砍一刀大礼包"
+		}
+		orderName = fmt.Sprintf("ACT_%s", orderTitle)
+		amount = int64(activity.CurrentPrice)
+		bargainActivityId = activity.Id
+		bargainQuota = activity.Quota
+	} else if req.TierId != "" {
+		tier := operation_setting.GetSpecialTierById(req.TierId)
+		if tier == nil || !tier.Enabled {
+			paymentError(c, common.NewMessage("Special tier does not exist or is disabled"))
+			return
+		}
+		if tier.UserLimit > 0 {
+			userPurchased, err := model.CountUserSpecialTierPurchases(id, tier.Id)
+			if err != nil {
+				paymentError(c, common.NewMessage("Failed to load purchase history"))
+				return
+			}
+			if userPurchased >= int64(tier.UserLimit) {
+				paymentError(c, common.NewMessage("Special tier purchase limit reached"))
+				return
+			}
+		}
+		if tier.TotalLimit > 0 {
+			totalPurchased, err := model.CountTotalSpecialTierPurchases(tier.Id)
+			if err != nil {
+				paymentError(c, common.NewMessage("Failed to load global purchase history"))
+				return
+			}
+			if totalPurchased >= int64(tier.TotalLimit) {
+				paymentError(c, common.NewMessage("Special tier is sold out"))
+				return
+			}
+		}
+		payMoney = tier.Price
+		orderName = fmt.Sprintf("ACT_%s", tier.Name)
+		amount = int64(tier.Price)
+		specialTierId = tier.Id
+		specialTierQuota = tier.Quota
+	} else {
+		if rejectInvalidTopUpQuota(c, id, req.Amount) {
+			return
+		}
+		if req.Amount < getMinTopup() {
+			paymentError(c, common.NewMessage("Top-up amount cannot be less than {{min}}", map[string]any{"min": getMinTopup()}))
+			return
+		}
+
+		group, err := model.GetUserGroup(id, true)
+		if err != nil {
+			paymentError(c, common.NewMessage("Failed to get the user group"))
+			return
+		}
+		payMoney = getPayMoney(req.Amount, group)
+		orderName = fmt.Sprintf("TUC%d", req.Amount)
+		amount = req.Amount
+		if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
+			dAmount := decimal.NewFromInt(int64(amount))
+			dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
+			amount = dAmount.Div(dQuotaPerUnit).IntPart()
+		}
+	}
+
+	if specialTierId != "" && rejectInvalidCreditedQuota(c, id, decimal.NewFromFloat(payMoney).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).Add(decimal.NewFromInt(specialTierQuota))) {
 		return
 	}
-	id := c.GetInt("id")
-	if rejectInvalidTopUpQuota(c, id, req.Amount) {
+	if bargainActivityId > 0 && rejectInvalidCreditedQuota(c, id, decimal.NewFromInt(bargainQuota)) {
 		return
 	}
 
-	group, err := model.GetUserGroup(id, true)
-	if err != nil {
-		paymentError(c, common.NewMessage("Failed to get the user group"))
-		return
-	}
-	payMoney := getPayMoney(req.Amount, group)
 	if payMoney < 0.01 {
 		paymentError(c, common.NewMessage("Payment amount is too low"))
 		return
@@ -322,11 +485,12 @@ func RequestEpay(c *gin.Context) {
 		paymentError(c, common.NewMessage("Payment information has not been configured by administrator"))
 		return
 	}
+	providerAmount := strconv.FormatFloat(payMoney, 'f', 2, 64)
 	uri, params, err := client.Purchase(&epay.PurchaseArgs{
 		Type:           req.PaymentMethod,
 		ServiceTradeNo: tradeNo,
-		Name:           fmt.Sprintf("TUC%d", req.Amount),
-		Money:          strconv.FormatFloat(payMoney, 'f', 2, 64),
+		Name:           orderName,
+		Money:          providerAmount,
 		Device:         epay.PC,
 		NotifyUrl:      notifyUrl,
 		ReturnUrl:      returnUrl,
@@ -336,21 +500,32 @@ func RequestEpay(c *gin.Context) {
 		paymentError(c, common.NewMessage("Failed to start payment"))
 		return
 	}
-	amount := req.Amount
-	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
-		dAmount := decimal.NewFromInt(int64(amount))
-		dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
-		amount = dAmount.Div(dQuotaPerUnit).IntPart()
+	commissionSnapshot, err := buildTopUpCommissionSnapshotFromString(
+		providerAmount,
+		"CNY",
+		decimal.NewFromFloat(operation_setting.Price),
+	)
+	if err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 创建佣金计价快照失败 user_id=%d trade_no=%s error=%q", id, tradeNo, err.Error()))
+		paymentError(c, common.NewMessage("Invalid payment configuration"))
+		return
 	}
 	topUp := &model.TopUp{
-		UserId:          id,
-		Amount:          amount,
-		Money:           payMoney,
-		TradeNo:         tradeNo,
-		PaymentMethod:   req.PaymentMethod,
-		PaymentProvider: model.PaymentProviderEpay,
-		CreateTime:      time.Now().Unix(),
-		Status:          common.TopUpStatusPending,
+		UserId:              id,
+		Amount:              amount,
+		Money:               payMoney,
+		ActualPaidAmount:    commissionSnapshot.ActualPaidAmount,
+		Currency:            commissionSnapshot.Currency,
+		CommissionBaseQuota: commissionSnapshot.CommissionBaseQuota,
+		TradeNo:             tradeNo,
+		PaymentMethod:       req.PaymentMethod,
+		PaymentProvider:     model.PaymentProviderEpay,
+		SpecialTierId:       specialTierId,
+		SpecialTierQuota:    specialTierQuota,
+		BargainActivityId:   bargainActivityId,
+		BargainQuota:        bargainQuota,
+		CreateTime:          time.Now().Unix(),
+		Status:              common.TopUpStatusPending,
 	}
 	err = topUp.Insert()
 	if err != nil {
@@ -431,7 +606,16 @@ func EpayNotify(c *gin.Context) {
 			return r
 		}, map[string]string{})
 	}
-	logger.LogInfo(c.Request.Context(), common.LogText("Epay webhook received request path=%q client_ip=%s method=%s params=%q", c.Request.RequestURI, c.ClientIP(), c.Request.Method, common.GetJsonString(params)))
+	logger.LogInfo(c.Request.Context(), fmt.Sprintf(
+		"易支付 webhook 收到请求 path=%q client_ip=%s method=%s trade_no=%s callback_type=%s trade_status=%s money=%s",
+		c.Request.RequestURI,
+		c.ClientIP(),
+		c.Request.Method,
+		params["out_trade_no"],
+		params["type"],
+		params["trade_status"],
+		params["money"],
+	))
 
 	if len(params) == 0 {
 		logger.LogWarn(c.Request.Context(), common.LogText("Epay webhook params are empty path=%q client_ip=%s", c.Request.RequestURI, c.ClientIP()))
@@ -466,27 +650,20 @@ func EpayNotify(c *gin.Context) {
 		// 数据库行锁 + 事务内状态校验保证（多实例部署下同样安全）。
 		LockOrder(verifyInfo.ServiceTradeNo)
 		defer UnlockOrder(verifyInfo.ServiceTradeNo)
-		alreadyDone, err := model.RechargeEpay(verifyInfo.ServiceTradeNo, verifyInfo.Type, c.ClientIP())
-		if err != nil {
-			switch {
-			case errors.Is(err, model.ErrTopUpNotFound):
-				logger.LogWarn(c.Request.Context(), common.LogText("Epay callback order not found trade_no=%s callback_type=%s client_ip=%s verify_info=%q", verifyInfo.ServiceTradeNo, verifyInfo.Type, c.ClientIP(), common.GetJsonString(verifyInfo)))
-			case errors.Is(err, model.ErrPaymentMethodMismatch):
-				logger.LogWarn(c.Request.Context(), common.LogText("Epay order payment gateway mismatch trade_no=%s callback_type=%s client_ip=%s", verifyInfo.ServiceTradeNo, verifyInfo.Type, c.ClientIP()))
-			case errors.Is(err, model.ErrTopUpStatusInvalid):
-				logger.LogWarn(c.Request.Context(), common.LogText("Epay order status invalid trade_no=%s callback_type=%s client_ip=%s", verifyInfo.ServiceTradeNo, verifyInfo.Type, c.ClientIP()))
-			default:
-				logger.LogError(c.Request.Context(), common.LogText("Epay top-up processing failed trade_no=%s client_ip=%s error=%q", verifyInfo.ServiceTradeNo, c.ClientIP(), err.Error()))
-			}
-			if _, writeErr := c.Writer.Write([]byte("fail")); writeErr != nil {
-				logger.LogError(c.Request.Context(), common.LogText("Epay webhook failed to write response trade_no=%s client_ip=%s error=%q", verifyInfo.ServiceTradeNo, c.ClientIP(), writeErr.Error()))
-			}
+		result, completeErr := model.CompleteOnlineTopUp(model.CompleteOnlineTopUpInput{
+			TradeNo:         verifyInfo.ServiceTradeNo,
+			PaymentProvider: model.PaymentProviderEpay,
+			PaymentMethod:   verifyInfo.Type,
+			SettledAmount:   verifyInfo.Money,
+		})
+		if completeErr != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 充值事务失败 trade_no=%s callback_type=%s client_ip=%s error=%q", verifyInfo.ServiceTradeNo, verifyInfo.Type, c.ClientIP(), completeErr.Error()))
+			_, _ = c.Writer.Write([]byte("fail"))
 			return
 		}
-		if alreadyDone {
-			logger.LogInfo(c.Request.Context(), common.LogText("Epay duplicate callback ignored trade_no=%s callback_type=%s client_ip=%s", verifyInfo.ServiceTradeNo, verifyInfo.Type, c.ClientIP()))
-		} else {
-			logger.LogInfo(c.Request.Context(), common.LogText("Epay top-up succeeded trade_no=%s callback_type=%s client_ip=%s", verifyInfo.ServiceTradeNo, verifyInfo.Type, c.ClientIP()))
+		if !result.AlreadyCompleted {
+			logger.LogInfo(c.Request.Context(), fmt.Sprintf("易支付 充值成功 trade_no=%s user_id=%d client_ip=%s quota_to_add=%d money=%s", result.TopUp.TradeNo, result.TopUp.UserId, c.ClientIP(), result.QuotaAdded, result.TopUp.ActualPaidAmount))
+			model.RecordTopupLog(result.TopUp.UserId, common.NewMessage("Online top-up succeeded, amount added: {{quota}}, payment amount: {{amount}}", map[string]any{"quota": result.QuotaAdded, "amount": result.TopUp.ActualPaidAmount}), c.ClientIP(), result.TopUp.PaymentMethod, model.PaymentProviderEpay)
 		}
 	} else {
 		logger.LogInfo(c.Request.Context(), common.LogText("Epay webhook ignored event trade_no=%s callback_type=%s trade_status=%s client_ip=%s verify_info=%q", verifyInfo.ServiceTradeNo, verifyInfo.Type, verifyInfo.TradeStatus, c.ClientIP(), common.GetJsonString(verifyInfo)))
@@ -504,11 +681,31 @@ func RequestAmount(c *gin.Context) {
 		return
 	}
 
+	id := c.GetInt("id")
+	if req.BargainActivityId > 0 {
+		activity, err := model.GetBargainActivityById(req.BargainActivityId)
+		if err != nil || activity == nil || activity.Status != model.BargainStatusActive || activity.UserId != id {
+			paymentError(c, common.NewMessage("Bargain activity does not exist or has ended"))
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "success", "data": strconv.FormatFloat(activity.CurrentPrice, 'f', 2, 64)})
+		return
+	}
+
+	if req.TierId != "" {
+		tier := operation_setting.GetSpecialTierById(req.TierId)
+		if tier == nil || !tier.Enabled {
+			paymentError(c, common.NewMessage("Special tier does not exist or is disabled"))
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "success", "data": strconv.FormatFloat(tier.Price, 'f', 2, 64)})
+		return
+	}
+
 	if req.Amount < getMinTopup() {
 		paymentError(c, common.NewMessage("Top-up amount cannot be less than {{min}}", map[string]any{"min": getMinTopup()}))
 		return
 	}
-	id := c.GetInt("id")
 	if rejectInvalidTopUpQuota(c, id, req.Amount) {
 		return
 	}

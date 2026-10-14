@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/service/sftcollect"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/samber/lo"
@@ -72,6 +73,10 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
 	adaptor.Init(info)
+	var capture *sftcollect.Capture
+	if sftcollect.Enabled() && info.RelayMode == relayconstant.RelayModeChatCompletions {
+		capture = sftcollect.Attach(c)
+	}
 
 	passThroughGlobal := model_setting.GetGlobalSettings().PassThroughRequestEnabled
 	if info.RelayMode == relayconstant.RelayModeChatCompletions &&
@@ -91,6 +96,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 			service.PostAudioConsumeQuota(c, info, usage, nil)
 		} else {
 			service.PostTextConsumeQuota(c, info, usage, nil)
+			enqueueSftSample(info, capture)
 		}
 		return nil
 	}
@@ -182,6 +188,43 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		service.PostAudioConsumeQuota(c, info, usage.(*dto.Usage), nil)
 	} else {
 		service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), nil)
+		enqueueSftSample(info, capture)
 	}
 	return nil
+}
+
+func enqueueSftSample(info *relaycommon.RelayInfo, capture *sftcollect.Capture) {
+	if capture == nil || !sftcollect.Enabled() {
+		return
+	}
+	if capture.Overflow() || capture.StatusCode() >= 400 {
+		return
+	}
+	req, ok := info.Request.(*dto.GeneralOpenAIRequest)
+	if !ok || len(req.Messages) == 0 {
+		return
+	}
+	msgs, ok := sftcollect.SnapshotMessages(req.Messages)
+	if !ok {
+		return
+	}
+	if info.IsStream && info.StreamStatus != nil {
+		if !info.StreamStatus.IsNormalEnd() || info.StreamStatus.HasErrors() {
+			return
+		}
+	}
+	var tools []byte
+	if len(req.Tools) > 0 {
+		encoded, err := common.Marshal(req.Tools)
+		if err == nil {
+			tools = encoded
+		}
+	}
+	sftcollect.TryEnqueue(sftcollect.Job{
+		Model:    info.OriginModelName,
+		Messages: msgs,
+		Tools:    tools,
+		Response: capture.CopyBody(),
+		IsStream: info.IsStream,
+	})
 }

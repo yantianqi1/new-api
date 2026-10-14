@@ -354,6 +354,14 @@ func migrateDB() error {
 		&Log{},
 		&Midjourney{},
 		&TopUp{},
+		&RedemptionRecord{},
+		&AffiliateCommission{},
+		&AffiliateCommissionTransfer{},
+		&SpecialTierPurchase{},
+		&SpecialTierStock{},
+		&BargainActivity{},
+		&BargainRecord{},
+
 		&QuotaData{},
 		&Task{},
 		&TaskPlugin{},
@@ -369,6 +377,10 @@ func migrateDB() error {
 		&SubscriptionPreConsumeRecord{},
 		&CustomOAuthProvider{},
 		&UserOAuthBinding{},
+		&OIDCClient{},
+		&OIDCAuthorizationCode{},
+		&OIDCAccessToken{},
+		&OIDCSigningKey{},
 		&PerfMetric{},
 		&SystemInstance{},
 		&SystemTask{},
@@ -378,6 +390,9 @@ func migrateDB() error {
 		&UserAccessToken{},
 	)
 	if err != nil {
+		return err
+	}
+	if err := backfillRedemptionUsageLimits(); err != nil {
 		return err
 	}
 	if err := InitializeUserAuthVersions(); err != nil {

@@ -153,6 +153,11 @@ export function useSidebarData(): SidebarData {
             icon: Ticket,
           },
           {
+            title: t('Affiliate Commissions'),
+            url: '/affiliate-commissions',
+            icon: Wallet,
+          },
+          {
             title: t('Subscriptions'),
             url: '/subscriptions',
             icon: CreditCard,

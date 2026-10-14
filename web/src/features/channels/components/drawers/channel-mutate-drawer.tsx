@@ -604,6 +604,8 @@ export function ChannelMutateDrawer({
   const currentAdvancedCustom = formValues.advanced_custom
   const currentHeaderOverride = formValues.header_override
   const currentProxy = formValues.proxy
+  const rpmLimit = formValues.rpm_limit
+  const rpmOverLimitAction = formValues.rpm_over_limit_action
   const currentHttpProtocol = formValues.http_protocol
   const {
     unlocked: doubaoApiEditUnlocked,
@@ -1814,6 +1816,125 @@ export function ChannelMutateDrawer({
         </FormItem>
       )}
     />
+  )
+
+  const rpmLimitFields = (
+    <>
+      <FormField
+        control={form.control}
+        name='rpm_limit'
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>{t('Channel RPM Limit')}</FormLabel>
+            <FormControl>
+              <Input
+                type='number'
+                min={0}
+                placeholder='0'
+                {...field}
+                onChange={(e) =>
+                  field.onChange(
+                    e.target.value === '' ? 0 : Number(e.target.value)
+                  )
+                }
+              />
+            </FormControl>
+            <FormDescription>
+              {t(
+                'Max requests per minute shared by all models on this channel. 0 means unlimited.'
+              )}
+            </FormDescription>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      {(rpmLimit ?? 0) > 0 && (
+        <FormField
+          control={form.control}
+          name='rpm_over_limit_action'
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t('Over-limit Behavior')}</FormLabel>
+              <Select
+                items={[
+                  {
+                    value: 'error',
+                    label: t('Return 429 error'),
+                  },
+                  {
+                    value: 'random_drop',
+                    label: t('Randomly drop excess requests'),
+                  },
+                ]}
+                onValueChange={field.onChange}
+                value={field.value}
+              >
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={t('Select over-limit behavior')}
+                    />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    <SelectItem value='error'>
+                      {t('Return 429 error')}
+                    </SelectItem>
+                    <SelectItem value='random_drop'>
+                      {t('Randomly drop excess requests')}
+                    </SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              <FormDescription>
+                {field.value === 'random_drop'
+                  ? t(
+                      'Requests over the RPM limit are rejected with 429 at a random probability; the rest pass through'
+                    )
+                  : t(
+                      'Requests over the RPM limit are rejected with 429 directly'
+                    )}
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      )}
+
+      {(rpmLimit ?? 0) > 0 && rpmOverLimitAction === 'random_drop' && (
+        <FormField
+          control={form.control}
+          name='rpm_drop_rate'
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t('Drop Probability (%)')}</FormLabel>
+              <FormControl>
+                <Input
+                  type='number'
+                  min={1}
+                  max={100}
+                  placeholder='50'
+                  {...field}
+                  onChange={(e) =>
+                    field.onChange(
+                      e.target.value === '' ? 50 : Number(e.target.value)
+                    )
+                  }
+                />
+              </FormControl>
+              <FormDescription>
+                {t(
+                  'Chance that an over-limit request gets rejected with 429 (1-100, default 50)'
+                )}
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      )}
+    </>
   )
 
   const systemPromptFields = (
@@ -4715,6 +4836,7 @@ export function ChannelMutateDrawer({
               >
                 {taskPollingFields}
                 {proxyFields}
+                {rpmLimitFields}
                 {httpProtocolFields}
                 {httpShardsFields}
                 {tlsInsecureSkipVerifyFields}

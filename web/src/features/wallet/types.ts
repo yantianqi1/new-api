@@ -72,6 +72,8 @@ export interface CreemProduct {
   price: number
   /** Quota amount to credit */
   quota: number
+  /** Paid-equivalent quota used for affiliate commission */
+  commissionBaseQuota?: number
   /** Currency (USD or EUR) */
   currency: 'USD' | 'EUR'
 }
@@ -156,6 +158,73 @@ export interface TopupInfo {
   payment_compliance_confirmed?: boolean
   /** Current compliance terms version */
   payment_compliance_terms_version?: string
+  /** Available promotional special tiers */
+  special_tiers?: SpecialTier[]
+  /** Bargain activity configuration and state */
+  bargain?: BargainInfo
+}
+
+/**
+ * Promotional special tier configuration and status
+ */
+export interface SpecialTier {
+  id: string
+  name: string
+  price: number
+  quota: number
+  total_limit: number
+  user_limit: number
+  description?: string
+  enabled: boolean
+  sort_order?: number
+  user_purchased?: number
+  user_purchased_count?: number
+  total_purchased?: number
+  purchased_count?: number
+  remaining_stock?: number
+  has_stock_limit?: boolean
+  user_can_purchase?: boolean
+  show_stock?: boolean
+  is_stock_visible?: boolean
+}
+
+export interface BargainActivityRecord {
+  id: number
+  bargain_activity_id: number
+  user_id: number
+  username: string
+  cut_amount: number
+  created_at: number
+}
+
+export interface BargainActivity {
+  id: number
+  user_id: number
+  title: string
+  origin_price: number
+  current_price: number
+  cut_count: number
+  max_slashes: number
+  quota: number
+  status: number
+  created_at: number
+}
+
+export interface BargainInfo {
+  enabled: boolean
+  title?: string
+  description?: string
+  origin_price: number
+  cut_amount: number
+  max_slashes: number
+  min_price: number
+  quota: number
+  user_limit: number
+  ip_limit_hours?: number
+  user_can_purchase: boolean
+  has_active_activity: boolean
+  activity?: BargainActivity | null
+  records?: BargainActivityRecord[]
 }
 
 /**
@@ -184,6 +253,8 @@ export interface PaymentRequest {
   amount: number
   /** Payment method identifier */
   payment_method: string
+  tier_id?: string
+  bargain_activity_id?: number
 }
 
 /**
@@ -210,6 +281,8 @@ export interface WaffoPancakePaymentRequest {
 export interface AmountRequest {
   /** Topup amount to calculate */
   amount: number
+  tier_id?: string
+  bargain_activity_id?: number
 }
 
 /**
@@ -218,6 +291,50 @@ export interface AmountRequest {
 export interface AffiliateTransferRequest {
   /** Quota amount to transfer */
   quota: number
+}
+
+export interface AffiliateCommissionSummary {
+  pending_quota: number
+  history_quota: number
+  eligible_invitee_count: number
+}
+
+export interface AffiliateCommissionRecord {
+  id: number
+  trade_no: string
+  masked_invitee: string
+  payment_provider: string
+  payment_method: string
+  actual_paid_amount: string
+  currency: string
+  commission_base_quota: number
+  rate_basis_points: number
+  commission_quota: number
+  status: 'awarded' | 'skipped'
+  skipped_reason?: string
+  create_time: number
+}
+
+export interface AffiliateCommissionTransferRecord {
+  id: number
+  quota: number
+  pending_quota_before: number
+  pending_quota_after: number
+  paid_quota_before: number
+  paid_quota_after: number
+  create_time: number
+}
+
+export interface AffiliateCommissionTransferRequest {
+  quota?: number
+  all?: boolean
+}
+
+export interface PaginatedData<T> {
+  page: number
+  page_size: number
+  total: number
+  items: T[]
 }
 
 /**
@@ -230,6 +347,8 @@ export interface UserWalletData {
   username: string
   /** Current quota balance */
   quota: number
+  /** Bonus quota balance (points) */
+  bonus_quota?: number
   /** Total used quota */
   used_quota: number
   /** Total request count */

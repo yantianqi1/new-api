@@ -80,6 +80,9 @@ export type Channel = z.infer<typeof channelSchema>
 // ============================================================================
 
 export interface ChannelSettings {
+  rpm_limit?: number
+  rpm_over_limit_action?: 'error' | 'random_drop'
+  rpm_drop_rate?: number
   task_plugin_key?: string
   task_extend_plugin_keys?: string[]
   force_format?: boolean

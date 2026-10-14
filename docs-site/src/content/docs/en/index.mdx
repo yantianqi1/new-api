@@ -1,0 +1,73 @@
+---
+title: waner~ API站 API Docs
+description: waner~ API站 (api.aiwanai.cc) AI API gateway integration docs
+template: splash
+hero:
+  tagline: One unified AI API gateway — one key, every model
+  actions:
+    - text: Quick Start
+      link: /en/quick-start/
+      icon: right-arrow
+      variant: primary
+    - text: Open console
+      link: https://api.aiwanai.cc
+      variant: secondary
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+<div class="aw-panel">
+  <div class="ep-item">
+    <div class="ep-label">Base URL</div>
+    <div class="ep-value">
+      <code translate="no">{'https://api.aiwanai.cc'}</code>
+      <button type="button" class="aw-copy" data-copy="https://api.aiwanai.cc" data-copied="Copied" aria-label="Copy Base URL"><span class="copy-label">Copy</span></button>
+    </div>
+    <div class="ep-sub">One site-wide endpoint, usable globally</div>
+  </div>
+  <div class="ep-item">
+    <div class="ep-label">Authentication</div>
+    <div class="ep-value">
+      <code translate="no">Authorization: Bearer &lt;token&gt;</code>
+      <button type="button" class="aw-copy" data-copy="Authorization: Bearer " data-copied="Copied" aria-label="Copy auth header"><span class="copy-label">Copy</span></button>
+    </div>
+    <div class="ep-sub">Create an <code translate="no">sk-</code> key under Console → API Keys</div>
+  </div>
+  <div class="ep-item">
+    <div class="ep-label">Protocols</div>
+    <div class="ep-value">OpenAI · Anthropic · Gemini</div>
+    <div class="ep-sub">Point the official SDKs here to call every vendor</div>
+  </div>
+</div>
+
+## Start by tool
+
+<CardGrid>
+  <Card title="Coding tools" icon="seti:shell">
+    Claude Code, Codex CLI, DeepSeek + OpenCode / ZCode, plus one-click import via CC Switch and XiaoBaiSwitch.
+    [Open the coding guides](/en/claude-code/)
+  </Card>
+  <Card title="SDK integration" icon="seti:javascript">
+    Point the official OpenAI SDK and Anthropic SDK at this site; one interface for every vendor's models.
+    [OpenAI SDK](/en/openai-sdk/) · [Anthropic SDK](/en/anthropic-sdk/)
+  </Card>
+  <Card title="Clients" icon="laptop">
+    Cherry Studio, AQBot, and Immersive Translate for desktop and the browser.
+    [Cherry Studio](/en/cherry-studio/) · [Immersive Translate](/en/immersive-translate/)
+  </Card>
+  <Card title="Platform tour" icon="open-book">
+    Wallet, usage logs, key safety, and groups — what each console page is for.
+    [Read the platform tour](/en/platform-tour/)
+  </Card>
+</CardGrid>
+
+<div class="aw-cta">
+  <div>
+    <h3>Get a key first</h3>
+    <p>Sign up in the console, create an <code translate="no">sk-</code> key, point your Base URL here, then send the first request. Use the error-code guide if you get stuck.</p>
+  </div>
+  <div class="aw-cta-actions">
+    <a class="aw-cta-primary" href="https://api.aiwanai.cc" target="_blank" rel="noreferrer" aria-label="Open console (opens in a new tab)">Open console</a>
+    <a class="aw-cta-secondary" href="/en/troubleshooting/">Error codes & troubleshooting</a>
+  </div>
+</div>

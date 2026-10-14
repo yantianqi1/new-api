@@ -16,6 +16,12 @@ type UserSetting struct {
 	SidebarModules                   string  `json:"sidebar_modules,omitempty"`                      // SidebarModules 左侧边栏模块配置
 	BillingPreference                string  `json:"billing_preference,omitempty"`                   // BillingPreference 扣费策略（订阅/钱包）
 	Language                         string  `json:"language,omitempty"`                             // Language 用户语言偏好 (zh, en)
+	// BonusQuotaModelRpm 是该用户对免费积分模型（BonusQuotaModels 白名单）的每分钟请求数上限覆盖值。
+	// nil 表示继承全局默认设置；0 表示该用户不限；大于 0 表示上限。
+	BonusQuotaModelRpm *int `json:"bonus_quota_model_rpm,omitempty"`
+	// BonusQuotaModelRpmByModel 是该用户对指定免费积分模型的每分钟请求数上限覆盖表。
+	// 缺 key 表示继承全局该模型的值；显式 0 表示该用户该模型不限。
+	BonusQuotaModelRpmByModel map[string]int `json:"bonus_quota_model_rpm_by_model,omitempty"`
 }
 
 var (

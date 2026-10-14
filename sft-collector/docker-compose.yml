@@ -1,0 +1,31 @@
+# Sidecar packer for new-api conversation samples.
+# It only needs the shared data directory; it does not talk to new-api over the network.
+#
+# On the API host, also mount the same directory into new-api and set:
+#   SFT_COLLECT_ENABLED=true
+#   SFT_COLLECT_DIR=/data/sft-collector
+#
+#   volumes:
+#     - ./data/sft-collector:/data/sft-collector
+#
+# new-api already mounts ./data:/data, so SFT_COLLECT_DIR=/data/sft-collector
+# is host ./data/sft-collector. Run this file from the repo root:
+#   docker compose -f sft-collector/docker-compose.yml up -d --build
+
+services:
+  sft-collector:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sft-collector
+    restart: always
+    environment:
+      - TZ=Asia/Shanghai
+      - SFT_COLLECT_DIR=/data/sft-collector
+      - SFT_MODEL_ALLOWLIST_FILE=/data/sft-collector/models.txt
+      - SFT_POLL_INTERVAL=3s
+      - SFT_PACK_INTERVAL=60s
+      - SFT_INBOX_KEEP_DAYS=7
+      - SFT_EXPORT_KEEP_DAYS=30
+    volumes:
+      - ${SFT_DATA_DIR:-../data/sft-collector}:/data/sft-collector

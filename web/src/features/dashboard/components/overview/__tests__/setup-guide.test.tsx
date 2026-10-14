@@ -239,3 +239,20 @@ describe('overview setup guide', () => {
     ).not.toBeInTheDocument()
   })
 })
+
+it('shows paid and points balances separately in the existing funding area', async () => {
+  useAuthStore.getState().auth.setUser({
+    id: 1,
+    username: 'dashboard-user',
+    role: 1,
+    quota: 1000000,
+    bonus_quota: 250000,
+    used_quota: 1000,
+    request_count: 1,
+  })
+  await renderOverview()
+  expect(await screen.findByText('Paid Balance')).toBeVisible()
+  expect(screen.getByText('Points Balance')).toBeVisible()
+  expect(screen.getByText('$2')).toBeVisible()
+  expect(await screen.findByText('$0.5')).toBeVisible()
+})

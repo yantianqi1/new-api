@@ -54,7 +54,7 @@ func DoCheckin(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	model.RecordLog(userId, model.LogTypeSystem, common.NewMessage("Daily check-in, received {{quota}}", map[string]any{"quota": logger.FormatQuota(checkin.QuotaAwarded)}))
+	model.RecordLog(userId, model.LogTypeSystem, common.NewMessage("Daily check-in, received bonus credit {{quota}}", map[string]any{"quota": logger.FormatQuota(checkin.QuotaAwarded)}))
 	common.ApiSuccessT(c, "Check-in successful", gin.H{
 		"quota_awarded": checkin.QuotaAwarded,
 		"checkin_date":  checkin.CheckinDate,

@@ -79,12 +79,15 @@ redis.call('HSET', KEYS[1],
 if ARGV[10] == '1' and redis.call('HEXISTS', KEYS[1], 'Quota') == 0 then
   redis.call('HSET', KEYS[1], 'Quota', ARGV[11])
 end
+if redis.call('HEXISTS', KEYS[1], 'BonusQuota') == 0 then
+ redis.call('HSET', KEYS[1], 'BonusQuota', ARGV[13])
+end
 redis.call('EXPIRE', KEYS[1], ARGV[12])
 return 1`
 	result, err := common.RDB.Eval(context.Background(), script,
 		[]string{getUserCacheKey(user.Id), getUserAuthFenceKey(user.Id), getUserAuthVersionKey(user.Id)},
 		user.AuthVersion, user.Id, user.Group, user.Email, user.Status, user.Role,
-		user.Username, user.Setting, user.CacheSchema, includeQuotaArg, user.Quota, ttl,
+		user.Username, user.Setting, user.CacheSchema, includeQuotaArg, user.Quota, ttl, user.BonusQuota,
 	).Int()
 	if err != nil {
 		return err
