@@ -86,7 +86,13 @@ func (w *BonusWalletFunding) Source() string              { return BillingSource
 func (w *BonusWalletFunding) PreConsume(amount int) error { return w.consume(amount, true) }
 func (w *BonusWalletFunding) Settle(delta int) error {
 	if delta > 0 {
-		return w.consume(delta, false)
+		bonus, paid, err := model.SettleUserBonusAndPaidQuota(w.userId, delta)
+		if err != nil {
+			return err
+		}
+		w.bonusConsumed += bonus
+		w.paidConsumed += paid
+		return nil
 	}
 	return w.refund(-delta)
 }

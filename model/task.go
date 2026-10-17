@@ -686,7 +686,7 @@ func SettleTaskBonusWallet(task *Task, actualQuota int) error {
 		return nil
 	}
 	if delta > 0 {
-		_, _, ok, err := reserveUserBonusAndPaidQuota(task.UserId, delta, true, func(tx *gorm.DB, bonus, paid int) error {
+		_, _, ok, err := consumeUserBonusAndPaidQuota(task.UserId, delta, true, true, func(tx *gorm.DB, bonus, paid int) error {
 			private.BonusQuotaConsumed += bonus
 			private.PaidQuotaConsumed += paid
 			result := tx.Model(&Task{}).Where("id = ? AND quota = ?", task.ID, previousQuota).Updates(map[string]any{"quota": actualQuota, "private_data": private})

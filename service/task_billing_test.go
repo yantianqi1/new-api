@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -25,6 +26,8 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -1873,7 +1876,7 @@ func TestBonusTaskDifferenceRefundsPaidBeforeBonus(t *testing.T) {
 	assert.Equal(t, 100, user.Quota)
 }
 
-func TestBonusTaskAdditionalChargeReservesWalletAndPersistsSplit(t *testing.T) {
+func TestBonusTaskAdditionalChargeSettlesWalletAndPersistsSplit(t *testing.T) {
 	truncate(t)
 	seedUser(t, 9103, 10)
 	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", 9103).Update("bonus_quota", 5).Error)
@@ -1892,11 +1895,104 @@ func TestBonusTaskAdditionalChargeReservesWalletAndPersistsSplit(t *testing.T) {
 	require.NoError(t, model.DB.First(&user, 9103).Error)
 	assert.Zero(t, user.BonusQuota)
 	assert.Equal(t, 3, user.Quota)
-	RecalculateTaskQuota(context.Background(), &restarted, 46, common.NewMessage("insufficient extra cost"))
+	RecalculateTaskQuota(context.Background(), &restarted, 46, common.NewMessage("actual extra cost"))
 	require.NoError(t, model.DB.First(&restarted, task.ID).Error)
-	assert.Equal(t, 42, restarted.Quota)
+	assert.Equal(t, 46, restarted.Quota)
+	assert.Equal(t, 21, restarted.PrivateData.PaidQuotaConsumed)
 	require.NoError(t, model.DB.First(&user, 9103).Error)
-	assert.Equal(t, 3, user.Quota)
+	assert.Equal(t, -1, user.Quota)
+}
+
+func TestBonusWalletSettlementDatabaseMatrix(t *testing.T) {
+	for _, dialect := range []common.DatabaseType{common.DatabaseTypeSQLite, common.DatabaseTypeMySQL, common.DatabaseTypePostgreSQL} {
+		t.Run(string(dialect), func(t *testing.T) {
+			var driver gorm.Dialector = sqlite.Open(":memory:")
+			if dialect != common.DatabaseTypeSQLite {
+				dsn := os.Getenv("TEST_BONUS_SETTLEMENT_" + string(dialect) + "_DSN")
+				if dsn == "" {
+					t.Skip("isolated settlement database not configured")
+				}
+				if dialect == common.DatabaseTypeMySQL {
+					driver = mysql.Open(dsn)
+				} else {
+					driver = postgres.New(postgres.Config{DSN: dsn, PreferSimpleProtocol: true})
+				}
+			}
+			db, err := gorm.Open(driver, &gorm.Config{})
+			require.NoError(t, err)
+			sqlDB, err := db.DB()
+			require.NoError(t, err)
+			sqlDB.SetMaxOpenConns(1)
+			oldDB, oldLogDB := model.DB, model.LOG_DB
+			oldMainType, oldLogType := common.MainDatabaseType(), common.LogDatabaseType()
+			model.DB, model.LOG_DB = db, db
+			common.SetDatabaseTypes(dialect, dialect)
+			t.Cleanup(func() {
+				model.DB, model.LOG_DB = oldDB, oldLogDB
+				common.SetDatabaseTypes(oldMainType, oldLogType)
+				require.NoError(t, sqlDB.Close())
+			})
+			require.NoError(t, db.AutoMigrate(&model.User{}, &model.Token{}, &model.Task{}))
+			for _, cache := range []bool{false, true} {
+				for _, taskMode := range []bool{false, true} {
+					t.Run(fmt.Sprintf("redis=%t/task=%t", cache, taskMode), func(t *testing.T) {
+						if cache {
+							useIndependentAuthSessionRedis(t)
+						}
+						user := model.User{Username: "bonus-settlement-matrix", Status: common.UserStatusEnabled, BonusQuota: 100}
+						require.NoError(t, db.Create(&user).Error)
+						t.Cleanup(func() { require.NoError(t, db.Unscoped().Delete(&user).Error) })
+						funding := &BonusWalletFunding{userId: user.Id}
+						require.NoError(t, funding.PreConsume(60))
+						require.ErrorIs(t, funding.PreConsume(41), ErrInsufficientWalletQuota, "request admission stays strict")
+						if taskMode {
+							task := makeTask(user.Id, 0, 60, 0, BillingSourceWallet, 0)
+							task.PrivateData.BonusQuotaModel = true
+							task.PrivateData.BonusQuotaConsumed = 60
+							require.NoError(t, db.Create(task).Error)
+							t.Cleanup(func() { require.NoError(t, db.Unscoped().Delete(task).Error) })
+							require.NoError(t, model.SettleTaskBonusWallet(task, 120))
+							var restarted model.Task
+							require.NoError(t, db.First(&restarted, task.ID).Error)
+							assert.Equal(t, 100, restarted.PrivateData.BonusQuotaConsumed)
+							assert.Equal(t, 20, restarted.PrivateData.PaidQuotaConsumed)
+							require.NoError(t, model.SettleTaskBonusWallet(&restarted, 120), "repeated settlement cannot charge again")
+						} else {
+							info := &relaycommon.RelayInfo{UserId: user.Id, BonusQuotaModel: true, IsPlayground: true}
+							session := &BillingSession{relayInfo: info, funding: funding, preConsumedQuota: 60}
+							require.NoError(t, session.Settle(120))
+							require.NoError(t, session.Settle(120), "repeated settlement cannot charge again")
+							assert.Equal(t, 100, info.BonusQuotaConsumed)
+							assert.Equal(t, 20, info.PaidQuotaConsumed)
+						}
+						var balance model.User
+						require.NoError(t, db.First(&balance, user.Id).Error)
+						assert.Zero(t, balance.BonusQuota)
+						assert.Equal(t, -20, balance.Quota, "delivered usage must be charged even when it exceeds the reservation")
+						if cache {
+							cached, err := model.GetUserCache(user.Id)
+							require.NoError(t, err)
+							assert.Zero(t, cached.BonusQuota)
+							assert.Equal(t, -20, cached.Quota)
+						}
+					})
+				}
+				t.Run(fmt.Sprintf("redis=%t/debt-limit", cache), func(t *testing.T) {
+					if cache {
+						useIndependentAuthSessionRedis(t)
+					}
+					user := model.User{Username: "bonus-settlement-limit", Status: common.UserStatusEnabled, Quota: -common.MaxWalletQuota}
+					require.NoError(t, db.Create(&user).Error)
+					t.Cleanup(func() { require.NoError(t, db.Unscoped().Delete(&user).Error) })
+					funding := &BonusWalletFunding{userId: user.Id}
+					require.ErrorIs(t, funding.Settle(1), model.ErrWalletQuotaLimitExceeded)
+					var balance model.User
+					require.NoError(t, db.First(&balance, user.Id).Error)
+					assert.Equal(t, -common.MaxWalletQuota, balance.Quota)
+				})
+			}
+		})
+	}
 }
 
 func TestBonusBillingSessionWalletLifecycle(t *testing.T) {

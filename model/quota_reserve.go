@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"errors"
+	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
 	"gorm.io/gorm"
@@ -242,12 +243,23 @@ func TryReserveTokenQuota(id int, key string, quota int, unlimited bool) (bool, 
 // models, then paid credit, in one operation. A cache hit is authoritative even
 // when older paid-wallet deductions are still waiting in the batch queue.
 func TryReserveUserBonusAndPaidQuota(id, quota int, allowBonus bool) (bonus, paid int, ok bool, err error) {
-	return reserveUserBonusAndPaidQuota(id, quota, allowBonus, nil)
+	return consumeUserBonusAndPaidQuota(id, quota, allowBonus, false, nil)
 }
 
-// reserveUserBonusAndPaidQuota may commit a durable billing snapshot in the
+// SettleUserBonusAndPaidQuota charges completed usage, using remaining bonus
+// credit before recording any shortfall as paid debt, like ordinary settlement.
+func SettleUserBonusAndPaidQuota(id, quota int) (bonus, paid int, err error) {
+	bonus, paid, ok, err := consumeUserBonusAndPaidQuota(id, quota, true, true, nil)
+	if err == nil && !ok {
+		err = errors.New("wallet settlement was not applied")
+	}
+	return bonus, paid, err
+}
+
+// consumeUserBonusAndPaidQuota may commit a durable billing snapshot in the
 // same transaction as the wallet deduction, after its atomic cache reservation.
-func reserveUserBonusAndPaidQuota(id, quota int, allowBonus bool, persist func(*gorm.DB, int, int) error) (bonus, paid int, ok bool, err error) {
+// Only settlement of completed usage may allow paid debt; admission stays strict.
+func consumeUserBonusAndPaidQuota(id, quota int, allowBonus, allowPaidDebt bool, persist func(*gorm.DB, int, int) error) (bonus, paid int, ok bool, err error) {
 	if quota < 0 {
 		return 0, 0, false, errors.New("quota cannot be negative")
 	}
@@ -276,12 +288,13 @@ local amount = tonumber(ARGV[1])
 if paid == nil or bonus == nil then return {-1, 0, 0} end
 local bonusSpend = math.min(math.max(bonus, 0), amount)
 local paidSpend = amount - bonusSpend
-if paid < amount - math.max(bonus, 0) then return {0, 0, 0} end
+if ARGV[4] ~= 'true' and paid < amount - math.max(bonus, 0) then return {0, 0, 0} end
+if ARGV[4] == 'true' and paid < -tonumber(ARGV[5]) + paidSpend then return {-2, 0, 0} end
 redis.call('HINCRBY', KEYS[1], 'BonusQuota', -bonusSpend)
 redis.call('HINCRBY', KEYS[1], 'Quota', -paidSpend)
 return {1, bonusSpend, paidSpend}`
 		for attempt := range 2 {
-			values, cacheErr := common.RDB.Eval(context.Background(), script, []string{getUserCacheKey(id)}, quota, id, userCacheSchemaVersion).Int64Slice()
+			values, cacheErr := common.RDB.Eval(context.Background(), script, []string{getUserCacheKey(id)}, quota, id, userCacheSchemaVersion, strconv.FormatBool(allowPaidDebt), common.MaxWalletQuota).Int64Slice()
 			if cacheErr != nil {
 				common.SysLog(common.LogText("mixed wallet reserve cache unavailable: %s", cacheErr.Error()))
 				break
@@ -291,6 +304,9 @@ return {1, bonusSpend, paidSpend}`
 			}
 			if values[0] == 0 {
 				return 0, 0, false, nil
+			}
+			if values[0] == -2 {
+				return 0, 0, false, ErrWalletQuotaLimitExceeded
 			}
 			if values[0] == -1 {
 				if attempt == 0 {
@@ -302,7 +318,11 @@ return {1, bonusSpend, paidSpend}`
 			}
 			bonus, paid = int(values[1]), int(values[2])
 			err = DB.Transaction(func(tx *gorm.DB) error {
-				result := tx.Model(&User{}).Where("id = ?", id).Updates(map[string]any{"bonus_quota": gorm.Expr("bonus_quota - ?", bonus), "quota": gorm.Expr("quota - ?", paid)})
+				query := tx.Model(&User{}).Where("id = ?", id)
+				if allowPaidDebt {
+					query = query.Where("quota >= ?", -common.MaxWalletQuota+paid)
+				}
+				result := query.Updates(map[string]any{"bonus_quota": gorm.Expr("bonus_quota - ?", bonus), "quota": gorm.Expr("quota - ?", paid)})
 				if result.Error != nil {
 					return result.Error
 				}
@@ -330,9 +350,12 @@ return {1, bonusSpend, paidSpend}`
 		}
 		bonus = min(max(user.BonusQuota, 0), quota)
 		paid = quota - bonus
-		if user.Quota < quota-max(user.BonusQuota, 0) {
+		if !allowPaidDebt && user.Quota < quota-max(user.BonusQuota, 0) {
 			bonus, paid = 0, 0
 			return nil
+		}
+		if allowPaidDebt && user.Quota < -common.MaxWalletQuota+paid {
+			return ErrWalletQuotaLimitExceeded
 		}
 		result := tx.Model(&User{}).Where("id = ? AND bonus_quota = ? AND quota = ?", id, user.BonusQuota, user.Quota).Updates(map[string]any{"bonus_quota": gorm.Expr("bonus_quota - ?", bonus), "quota": gorm.Expr("quota - ?", paid)})
 		if result.Error != nil {
