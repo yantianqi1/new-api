@@ -46,6 +46,7 @@ export function ActivityBar() {
     if (
       !raw ||
       typeof raw !== 'object' ||
+      raw.enabled === false ||
       typeof raw.title !== 'string' ||
       !raw.title.trim()
     ) {
@@ -74,72 +75,66 @@ export function ActivityBar() {
       className='activity-bar border-border bg-primary/5 w-full overflow-hidden border-b text-sm'
     >
       <div className='activity-bar-track flex w-max items-center py-2'>
-        <div className='flex items-center gap-8 px-4'>
-          {items.map((item) => {
-            const content = (
-              <>
-                {t(item.title)}{' '}
-                {item.tag && (
-                  <span className='bg-primary/10 text-primary rounded px-1.5 py-0.5 text-xs'>
-                    {t(item.tag)}
-                  </span>
-                )}
-              </>
-            )
-            const className =
-              'inline-flex items-center gap-2 whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2'
-            if (item.external) {
+        {[false, true].map((repeated) => (
+          <div
+            key={String(repeated)}
+            aria-hidden={repeated || undefined}
+            className={
+              repeated
+                ? 'activity-bar-repeat flex items-center gap-8 px-4'
+                : 'flex items-center gap-8 px-4'
+            }
+          >
+            {items.map((item) => {
+              const content = (
+                <>
+                  {t(item.title)}{' '}
+                  {item.tag && (
+                    <span className='bg-primary/10 text-primary rounded px-1.5 py-0.5 text-xs'>
+                      {t(item.tag)}
+                    </span>
+                  )}
+                </>
+              )
+              const className =
+                'inline-flex items-center gap-2 whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2'
+              if (item.external) {
+                return (
+                  <a
+                    key={`${item.title}:${item.link}:${item.tag}`}
+                    className={className}
+                    href={item.link}
+                    tabIndex={repeated ? -1 : undefined}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                  >
+                    {content}
+                  </a>
+                )
+              }
+              if (item.link) {
+                return (
+                  <Link
+                    key={`${item.title}:${item.link}:${item.tag}`}
+                    className={className}
+                    to={item.link}
+                    tabIndex={repeated ? -1 : undefined}
+                  >
+                    {content}
+                  </Link>
+                )
+              }
               return (
-                <a
+                <span
                   key={`${item.title}:${item.link}:${item.tag}`}
                   className={className}
-                  href={item.link}
-                  target='_blank'
-                  rel='noopener noreferrer'
                 >
                   {content}
-                </a>
-              )
-            }
-            if (item.link) {
-              return (
-                <Link
-                  key={`${item.title}:${item.link}:${item.tag}`}
-                  className={className}
-                  to={item.link}
-                >
-                  {content}
-                </Link>
-              )
-            }
-            return (
-              <span
-                key={`${item.title}:${item.link}:${item.tag}`}
-                className={className}
-              >
-                {content}
-              </span>
-            )
-          })}
-        </div>
-        <div
-          aria-hidden='true'
-          className='activity-bar-repeat flex items-center gap-8 px-4'
-        >
-          {items.map((item) => (
-            <span
-              key={`${item.title}:${item.link}:${item.tag}`}
-              className='inline-flex items-center gap-2 whitespace-nowrap'
-            >
-              {t(item.title)}
-              {item.tag && (
-                <span className='bg-primary/10 text-primary rounded px-1.5 py-0.5 text-xs'>
-                  {t(item.tag)}
                 </span>
-              )}
-            </span>
-          ))}
-        </div>
+              )
+            })}
+          </div>
+        ))}
       </div>
     </nav>
   )

@@ -4,13 +4,13 @@
 .activity-bar:hover .activity-bar-track {
   animation-play-state: paused;
 }
-.activity-bar:focus-within {
+.activity-bar:has(:focus-visible) {
   overflow-x: auto;
 }
-.activity-bar:focus-within .activity-bar-track {
+.activity-bar:has(:focus-visible) .activity-bar-track {
   animation: none;
 }
-.activity-bar:focus-within .activity-bar-repeat {
+.activity-bar:has(:focus-visible) .activity-bar-repeat {
   display: none;
 }
 @keyframes activity-scroll {
