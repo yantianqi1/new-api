@@ -18,13 +18,13 @@ User requested finalization of the upstream/custom migration and creation of a p
 - [x] Run activity-bar regression, typecheck and affected lint; commit existing verified fix.
 - [x] Merge the fetched official upstream and resolve only integration conflicts.
 - [x] Review custom-feature preservation and upstream changes in billing, plugins, rate limits and security.
-- [ ] Run frontend tests/typecheck/build, backend tests/build, independent module builds/tests and affected lint/format checks.
+- [x] Run frontend tests/typecheck/build, backend tests/build, independent module builds/tests and affected lint/format checks.
 - [x] Run fresh and production-main upgrade/idempotency checks on real SQLite, MySQL and PostgreSQL, including separate log DB.
-- [ ] Rehearse a fresh production snapshot in an isolated database; compare original row hashes, balances, constraints and read APIs.
-- [ ] Build a versioned linux/amd64 container and test it against isolated data/Redis; verify frontend assets and authentication behavior.
-- [ ] Review the final diff and document material gaps before release.
+- [x] Rehearse a fresh production snapshot in an isolated database; compare original row hashes, balances, constraints and read APIs.
+- [x] Build a versioned linux/amd64 container and test it against isolated data/Redis; verify frontend assets and authentication behavior.
+- [x] Review the final diff and document material gaps before release.
 - [x] Prepare server-only backup and rollback commands; stage the image without changing production.
-- [ ] Start the independent preview stack at `http://154.201.69.160:3002`, copy production into its separate MySQL, migrate the copy, and verify IP access and original-stack isolation.
+- [x] Start the independent preview stack at `http://154.201.69.160:3002`, copy production into its separate MySQL, migrate the copy, and verify IP access and original-stack isolation.
 
 ## Release constraints
 
@@ -62,3 +62,16 @@ The earlier production snapshot rehearsal preserved all 1,091,516 original rows 
 The checked-in `docker-compose.preview.yml` records the deployed second-site stack. The second site lives at `/opt/new-api-preview`, Compose project `new-api-preview`, containers `new-api-preview`, `new-api-preview-mysql`, `new-api-preview-redis`, and network `new-api-preview-network`. MySQL data, app files, logs and fresh cache/session secrets are independent. Only port 3002 is published. No proxy, certificate or domain change is made. `NODE_TYPE=slave`, `UPDATE_TASK=false` and disabled scheduled model updates prevent copied queued jobs from executing in parallel with production. The preview is limited to 0.5 CPU/256 MiB for the app, 0.5 CPU/384 MiB for MySQL, and 0.1 CPU/64 MiB for Redis to constrain its impact on the shared host. SQL pools are limited to 15 open / 5 idle connections. For the explicitly requested HTTP IP preview, secure cookies are disabled; TLS-only OIDC/passkey behavior requires a later HTTPS deployment.
 
 An explicitly authorized fresh single-transaction production dump is copied into the new MySQL only. The preview's `ServerAddress` alone is adjusted to its IP URL. The original database, running container and domain are not switched or migrated.
+
+### Observed second-site result
+
+- New containers are running and healthy. Public `http://154.201.69.160:3002/api/status` returns the pinned release version and the IP-only `ServerAddress`.
+- Copied snapshot: 2492 users, 2151 API tokens, 27 channels, 1075 top-up records, 884708 log records, zero legacy tasks, 436 redemption records. This is a one-time data copy, not ongoing replication; subsequent changes belong to each site's own database.
+- A standalone migration helper built from this source ran against the preview DSN only, before starting the slave-mode app. Two runs succeeded in 3.94s and 1.48s. Commands: `docker compose -p new-api-preview run --rm --no-deps -T -v /opt/new-api-preview/snapshot/migrate:/release-migrate:ro --entrypoint /release-migrate new-api`, then `docker compose -p new-api-preview up -d --no-deps new-api`.
+- Thirteen checks passed on the actual new instance: release/address, unauthorized rejection, copied legacy management access to self/top-up/commission/redemption reads, an existing API key's model list, disjoint app networks/mounts, disabled copied background tasks, original image, and byte-identical original env/compose.
+- All six initial JS/CSS resources returned HTTP 200 with appropriate content types. Obscura with a 15-second render wait observed 37 links, the copied site name, home content and the activity marquee. The initial short wait returned an empty SPA root; this was a rendering-wait limitation, not evidence of successful page rendering or a source defect.
+- The public `/sign-in` page rendered the copied site name and username/email/password form (two inputs, one password field). Actual copied account passwords were not requested, reset or printed.
+- At post-start observation the new app used about 53 MiB of its 256 MiB limit and the new MySQL about 314 MiB of its 384 MiB limit; neither was OOM-killed. The original app remained healthy on the same original image/creation time.
+- Server-only snapshot, import/migration logs and sanitized verification: `/opt/new-api-preview/snapshot/`. Credentials remain only in the server's mode-600 `/opt/new-api-preview/.env`; no credentials or production record contents were committed. Source and preview configuration are pushed to `origin/codex/production-release-20261017`.
+
+No production replacement, production database migration, DNS/proxy change, real model generation, actual payment or lottery award was performed for this second-site rollout. Browser sessions are independent; use the copied account credentials to sign in again.
