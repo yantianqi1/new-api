@@ -2,7 +2,7 @@
 
 ## Scope and source
 
-User requested finalization of the upstream/custom migration, creation of a production branch, and updating the production website.
+User requested finalization of the upstream/custom migration and creation of a production branch. The later instruction explicitly defers production replacement: run a second independent instance, expose it by IP without a domain, and copy current production data into its own database.
 
 - Release branch: `codex/production-release-20261017`.
 - Starting migration commit: `4b3785f1bdc9b865617eb417dd001bf141c5a404`.
@@ -23,7 +23,8 @@ User requested finalization of the upstream/custom migration, creation of a prod
 - [ ] Rehearse a fresh production snapshot in an isolated database; compare original row hashes, balances, constraints and read APIs.
 - [ ] Build a versioned linux/amd64 container and test it against isolated data/Redis; verify frontend assets and authentication behavior.
 - [ ] Review the final diff and document material gaps before release.
-- [ ] Prepare server-only backup and concrete rollback commands, stage the image, then switch production and verify public website/API behavior.
+- [x] Prepare server-only backup and rollback commands; stage the image without changing production.
+- [ ] Start the independent preview stack at `http://154.201.69.160:3002`, copy production into its separate MySQL, migrate the copy, and verify IP access and original-stack isolation.
 
 ## Release constraints
 
@@ -48,4 +49,16 @@ Historical results in `CUSTOM_MIGRATION_PLAN.md` are context, not fresh release 
 
 The current local `newapi-lottery` client uses `/api/user/self`, `/api/user/:id`, `/api/user/topup` and `POST /api/redemption` with management access tokens. The new gateway retains existing management tokens for the server-managed 30-day transition. Their retirement date is first persisted at migration. The worker and users must switch to scoped personal access tokens before that date (`profile:read` for user identity; administrative user/billing/redemption permissions for the worker). API `sk-` tokens are a separate mechanism. Do not weaken session/security requirements or extend the retirement deadline to disguise an unmigrated integration.
 
-Payment callbacks, an actual lottery award, OIDC client login through the external site, and live model generation require distinct runtime evidence. Do not infer those from status or model-list success. Production backup, image staging, rollout and public validation remain pending.
+Payment callbacks, an actual lottery award, OIDC client login through the external site, and live model generation require distinct runtime evidence. Do not infer those from status or model-list success.
+
+## Independent second-site rollout
+
+The original `new-api` container remains on `new-api:reliability-tierfix-20261008`, port 3000, original MySQL/Redis, `/opt/new-api`, and its existing domain. Original `.env` and compose files were compared byte-for-byte with the pre-release backup and are unchanged. A production-switch script was staged but never executed; its staged scripts/configuration were withdrawn to a `deferred-switch/` backup subdirectory after the user's second-site instruction.
+
+Candidate image `new-api:yantianqi1-release-20261017-8c5aa8417` is linux/amd64, image ID `sha256:ce7217a71fde4577555931958a18e4110fa1348af76a8bd7ecf6a445005964fa`, source revision `8c5aa84174bc5dbd5ba7f54510c41cb71ecf0072`, runtime version `release-20261017-46c7cf336`. It was built locally, transferred, and its ID/revision verified on the server. The isolated candidate container passed 13 login/cookie/origin/refresh/logout/management checks. Obscura loaded its built frontend. Focused auth/billing race tests, tokenkit tests and SFT collector tests passed.
+
+The earlier production snapshot rehearsal preserved all 1,091,516 original rows by per-row hashes (only two option additions), all 62 original unique-constraint signatures, and identical schema on repeated migration. Four unique indexes were renamed by GORM; their column/uniqueness signatures were preserved. Existing API key model-list checks and old management-token reads passed; lottery-equivalent user lookup and redemption creation passed in the isolated copy only.
+
+The checked-in `docker-compose.preview.yml` records the deployed second-site stack. The second site lives at `/opt/new-api-preview`, Compose project `new-api-preview`, containers `new-api-preview`, `new-api-preview-mysql`, `new-api-preview-redis`, and network `new-api-preview-network`. MySQL data, app files, logs and fresh cache/session secrets are independent. Only port 3002 is published. No proxy, certificate or domain change is made. `NODE_TYPE=slave`, `UPDATE_TASK=false` and disabled scheduled model updates prevent copied queued jobs from executing in parallel with production. The preview is limited to 0.5 CPU/256 MiB for the app, 0.5 CPU/384 MiB for MySQL, and 0.1 CPU/64 MiB for Redis to constrain its impact on the shared host. SQL pools are limited to 15 open / 5 idle connections. For the explicitly requested HTTP IP preview, secure cookies are disabled; TLS-only OIDC/passkey behavior requires a later HTTPS deployment.
+
+An explicitly authorized fresh single-transaction production dump is copied into the new MySQL only. The preview's `ServerAddress` alone is adjusted to its IP URL. The original database, running container and domain are not switched or migrated.
